@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Folder, FolderOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { FolderRow, DirNode } from '../../shared/api';
-import PageHeader from '../components/PageHeader';
 import { useI18n } from '../i18n';
 
 interface Props {
@@ -82,7 +82,15 @@ function Node({ folderId, rootName, node, depth, expandedPaths, onOpen, onToggle
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
       >
-        <span className="name">{node.isDir ? (open ? '▼ ' : '▶ ') : '  '}{displayName}</span>
+        <span className="name">
+          <span className="tree-node-disclosure" aria-hidden="true">{node.isDir ? (open ? '▼' : '▶') : ''}</span>
+          {node.isDir ? (
+            <span className="tree-node-folder-icon" aria-hidden="true">
+              {open ? <FolderOpen /> : <Folder />}
+            </span>
+          ) : null}
+          <span className="tree-node-label">{displayName}</span>
+        </span>
         <span className="total">{node.total.toLocaleString(locale)} {t('common.lines')}{node.isDir ? ` · ${node.files.toLocaleString(locale)} ${t('common.files')}` : ''}</span>
       </div>
       {node.isDir && open && node.children?.map((c, i) => (
@@ -221,8 +229,8 @@ export default function TreeView({ folder, scanRevision, expandedPaths, onToggle
         return;
       }
 
-      const stickyCurrentPath = treePage.querySelector<HTMLElement>('.tree-current-path');
-      const threshold = stickyCurrentPath?.getBoundingClientRect().bottom ?? scrollContainer.getBoundingClientRect().top;
+      const stickyToolbar = treePage.querySelector<HTMLElement>('.tree-toolbar');
+      const threshold = stickyToolbar?.getBoundingClientRect().bottom ?? scrollContainer.getBoundingClientRect().top;
       const firstVisibleRow = rows.find(row => row.getBoundingClientRect().bottom > threshold) ?? rows[rows.length - 1];
       const rowPath = firstVisibleRow?.dataset.treePath ?? '';
       const activePath = firstVisibleRow?.dataset.treeDir === '1' ? rowPath : parentDirectoryPath(rowPath);
@@ -266,18 +274,31 @@ export default function TreeView({ folder, scanRevision, expandedPaths, onToggle
 
   return (
     <div ref={treePageRef} className="tree-page">
-      <PageHeader
-        title={t('tree.title')}
-        description={t('tree.subtitle', { count: treeDirectories.maxDepth.toLocaleString() })}
-      />
-      <section className="tree-current-path" aria-label={t('tree.currentPath')}>
-        <span className="tree-current-path-label">{t('tree.currentPath')}</span>
+      <section className="tree-toolbar" aria-label={t('tree.quickActions')}>
         <div className="tree-current-path-breadcrumbs">
           {currentBreadcrumbs.map((segment, index) => (
             <React.Fragment key={`${segment}-${index}`}>
               {index > 0 ? <span className="tree-current-path-separator">/</span> : null}
               <span className={index === currentBreadcrumbs.length - 1 ? 'tree-current-path-segment active' : 'tree-current-path-segment'}>{segment}</span>
             </React.Fragment>
+          ))}
+        </div>
+        <div className="tree-toolbar-actions">
+          <button type="button" onClick={handleExpandAll} disabled={treeDirectories.allPaths.length === 0}>
+            {allDirectoriesExpanded ? t('tree.collapseAll') : t('tree.expandAll')}
+          </button>
+          {visibleLevels.map(level => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => handleExpandLevel(level)}
+            >
+              {[
+                t('tree.levelOne'),
+                t('tree.levelTwo'),
+                t('tree.levelThree'),
+              ][level - 1]}
+            </button>
           ))}
         </div>
       </section>
@@ -290,24 +311,6 @@ export default function TreeView({ folder, scanRevision, expandedPaths, onToggle
         onOpen={p => navigate(`/editor/${encodeURIComponent(p)}`)}
         onTogglePath={onTogglePath}
       />
-      <section className="tree-bottom-actions" aria-label={t('tree.quickActions')}>
-        <button type="button" onClick={handleExpandAll} disabled={treeDirectories.allPaths.length === 0}>
-          {allDirectoriesExpanded ? t('tree.collapseAll') : t('tree.expandAll')}
-        </button>
-        {visibleLevels.map(level => (
-          <button
-            key={level}
-            type="button"
-            onClick={() => handleExpandLevel(level)}
-          >
-            {[
-              t('tree.levelOne'),
-              t('tree.levelTwo'),
-              t('tree.levelThree'),
-            ][level - 1]}
-          </button>
-        ))}
-      </section>
     </div>
   );
 }

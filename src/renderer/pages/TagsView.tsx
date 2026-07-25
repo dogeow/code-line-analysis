@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { FolderRow, TagRow } from '../../shared/api';
 import { useI18n } from '../i18n';
-import PageHeader from '../components/PageHeader';
 
 interface Props {
   folder: FolderRow | null;
@@ -84,22 +83,20 @@ export default function TagsView({ folder, scanRevision }: Props) {
 
   return (
     <div className="tags-page">
-      <PageHeader
-        title={t('tags.title')}
-        description={t('tags.subtitle')}
-        meta={t('tags.count', { tags: limitedTags.length.toLocaleString(locale), files: groupedTags.length.toLocaleString(locale) })}
-        actions={(
-          <label className="page-select-field">
-            <span>{t('common.kind')}</span>
-            <select value={kind} onChange={e => setKind(e.target.value)}>
-              {KINDS.map(k => <option key={k} value={k}>{k || t('common.all')}</option>)}
-            </select>
-          </label>
-        )}
-      />
+      <div className="tags-toolbar">
+        <label className="page-select-field">
+          <span>{t('common.kind')}</span>
+          <select value={kind} onChange={e => setKind(e.target.value)}>
+            {KINDS.map(k => <option key={k} value={k}>{k || t('common.all')}</option>)}
+          </select>
+        </label>
+        <span className="page-meta">
+          {t('tags.count', { tags: limitedTags.length.toLocaleString(locale), files: groupedTags.length.toLocaleString(locale) })}
+        </span>
+      </div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>{t('common.kind')}</th><th>{t('common.file')}</th><th>{t('common.lines')}</th><th>{t('tags.jump')}</th><th>{t('common.text')}</th><th className="align-right">{t('common.count')}</th></tr></thead>
+          <thead><tr><th>{t('common.kind')}</th><th>{t('common.file')}</th><th>{t('common.lines')}</th><th>{t('tags.jump')}</th><th>{t('common.text')}</th><th>{t('common.count')}</th></tr></thead>
           <tbody>
             {groupedTags.map(group => (
               <tr key={group.relPath}>
@@ -129,7 +126,7 @@ export default function TagsView({ folder, scanRevision }: Props) {
                   </div>
                 </td>
                 <td className="mono">{group.hits[0].text}{group.hits.length > 1 ? ` (+${group.hits.length - 1})` : ''}</td>
-                <td className="mono align-right">{group.hits.length.toLocaleString(locale)}</td>
+                <td className="mono">{group.hits.length.toLocaleString(locale)}</td>
               </tr>
             ))}
           </tbody>

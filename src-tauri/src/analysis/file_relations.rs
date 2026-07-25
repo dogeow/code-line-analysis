@@ -211,7 +211,7 @@ fn expand_php_use_statement(statement: &str) -> Vec<String> {
 }
 
 fn collect_php_use_specifiers(content: &str) -> HashSet<String> {
-    static USE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s*use\s+([\s\S]*?);").unwrap());
+    static USE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?m)^[ \t]*use[ \t]+([^;]+);").unwrap());
     let mut specifiers = HashSet::new();
     for caps in USE.captures_iter(content) {
         if let Some(body) = caps.get(1) {
@@ -221,6 +221,15 @@ fn collect_php_use_specifiers(content: &str) -> HashSet<String> {
         }
     }
     specifiers
+}
+
+fn is_local_php_specifier(specifier: &str, composer_mappings: &[ComposerNamespaceMapping]) -> bool {
+    let normalized = normalize_php_namespace(specifier);
+    composer_mappings.iter().any(|mapping| {
+        mapping.prefix.is_empty()
+            || normalized == mapping.prefix
+            || normalized.starts_with(&format!("{}/", mapping.prefix))
+    })
 }
 
 fn collect_specifiers_for_file(file: &SourceFile) -> HashSet<String> {
@@ -420,7 +429,8 @@ pub fn build_file_relation_graph(files: &[SourceFile]) -> FileRelationGraph {
             if target.is_none() {
                 if specifier.starts_with('.')
                     || specifier.starts_with("@/")
-                    || file.lang.to_lowercase() == "php"
+                    || (file.lang.to_lowercase() == "php"
+                        && is_local_php_specifier(&specifier, &composer_mappings))
                 {
                     unresolved_count += 1;
                 }
@@ -498,5 +508,117 @@ pub fn build_file_relation_graph(files: &[SourceFile]) -> FileRelationGraph {
         scanned_files: normalized_files.len() as i64,
         connected_files,
         unresolved_count,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn source(rel_path: &str, lang: &str, content: &str) -> SourceFile {
+        SourceFile {
+            rel_path: rel_path.to_string(),
+            lang: lang.to_string(),
+            total: content.lines().count() as i64,
+            code: content
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .count() as i64,
+            content: content.to_string(),
+        }
+    }
+
+    #[test]
+    fn resolves_laravel_psr4_use_statements_after_namespace() {
+        let files = vec![
+            source(
+                "composer.json",
+                "JSON",
+                r#"{"autoload":{"psr-4":{"App\\":"app/"}}}"#,
+            ),
+            source(
+                "app/Http/Controllers/UserController.php",
+                "PHP",
+                r#"<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use App\Services\UserService;
+use Illuminate\Http\Request;
+
+class UserController {}
+"#,
+            ),
+            source(
+                "app/Models/User.php",
+                "PHP",
+                "<?php\nnamespace App\\Models;\nclass User {}\n",
+            ),
+            source(
+                "app/Services/UserService.php",
+                "PHP",
+                "<?php\nnamespace App\\Services;\nclass UserService {}\n",
+            ),
+        ];
+
+        let graph = build_file_relation_graph(&files);
+        let edges: HashSet<(String, String)> = graph
+            .edges
+            .iter()
+            .map(|edge| (edge.source.clone(), edge.target.clone()))
+            .collect();
+
+        assert!(edges.contains(&(
+            "app/Http/Controllers/UserController.php".to_string(),
+            "app/Models/User.php".to_string(),
+        )));
+        assert!(edges.contains(&(
+            "app/Http/Controllers/UserController.php".to_string(),
+            "app/Services/UserService.php".to_string(),
+        )));
+        assert_eq!(graph.connected_files, 3);
+        assert_eq!(graph.unresolved_count, 0);
+    }
+
+    #[test]
+    fn resolves_multiline_grouped_php_uses() {
+        let files = vec![
+            source(
+                "composer.json",
+                "JSON",
+                r#"{"autoload":{"psr-4":{"App\\":"app/"}}}"#,
+            ),
+            source(
+                "app/Http/Controllers/ReportController.php",
+                "PHP",
+                r#"<?php
+namespace App\Http\Controllers;
+
+use App\Services\{
+    ExportService,
+    ReportService as Reports
+};
+
+class ReportController {}
+"#,
+            ),
+            source(
+                "app/Services/ExportService.php",
+                "PHP",
+                "<?php class ExportService {}",
+            ),
+            source(
+                "app/Services/ReportService.php",
+                "PHP",
+                "<?php class ReportService {}",
+            ),
+        ];
+
+        let graph = build_file_relation_graph(&files);
+
+        assert_eq!(graph.edges.len(), 2);
+        assert_eq!(graph.connected_files, 3);
+        assert_eq!(graph.unresolved_count, 0);
     }
 }

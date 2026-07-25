@@ -58,7 +58,10 @@ export default function TopView({ folder, scanRevision }: Props) {
                   <tr
                     key={`${f.relPath}:${f.name}:${f.startLine}:${index}`}
                     className="clickable-row"
-                    onClick={() => navigate(`/editor/${encodeURIComponent(f.relPath)}?line=${f.startLine}&endLine=${f.endLine}&highlight=function`)}
+                    onClick={() => navigate(
+                      `/editor/${encodeURIComponent(f.relPath)}?line=${f.startLine}&endLine=${f.endLine}&highlight=function`,
+                      { state: { sourceNav: '/top' } },
+                    )}
                   >
                     <td className="mono">{f.relPath}</td>
                     <td className="mono">{f.name}</td>

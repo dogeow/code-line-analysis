@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import type { FolderRow, LaravelSchemaGraph, LaravelSchemaRelation } from '../../shared/api';
 import EChartsPanel from '../components/EChartsPanel';
 import EmptyState from '../components/EmptyState';
-import PageHeader from '../components/PageHeader';
 import { useI18n } from '../i18n';
 import { escapeHtml } from '../utils/escapeHtml';
 
@@ -149,17 +148,6 @@ export default function LaravelSchemaView({ folder, scanRevision }: Props) {
     [allFiltersSelected, relationCounts, schema],
   );
 
-  const analysisSteps = useMemo(
-    () => [
-      t('laravelSchema.stepScanModels'),
-      t('laravelSchema.stepParseModels'),
-      t('laravelSchema.stepReadRelations'),
-      t('laravelSchema.stepInferKeys'),
-      t('laravelSchema.stepGenerateDiagram'),
-    ],
-    [t],
-  );
-
   const chartOption = useMemo<EChartsOption>(() => ({
     animationDuration: 700,
     legend: {
@@ -260,41 +248,6 @@ export default function LaravelSchemaView({ folder, scanRevision }: Props) {
 
   return (
     <div className="laravel-schema-page">
-      <PageHeader
-        title={t('laravelSchema.title')}
-        description={t('laravelSchema.subtitle')}
-      />
-
-      <div className="chart-grid laravel-schema-guide-grid">
-        <div className="chart-box laravel-schema-guide-box">
-          <div>
-            <h3>{t('laravelSchema.supportedTitle')}</h3>
-            <p className="laravel-schema-guide-copy">{t('laravelSchema.supportedSubtitle')}</p>
-          </div>
-          <ul className="laravel-schema-method-list">
-            {SUPPORTED_RELATION_METHODS.map(({ kind, method }) => {
-              const count = relationKindCounts.get(kind) ?? 0;
-              return (
-                <li key={kind}>
-                  <span className="laravel-schema-method-name">{method}</span>
-                  <span className="laravel-schema-method-count">{count.toLocaleString(locale)}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <div className="chart-box laravel-schema-guide-box">
-          <div>
-            <h3>{t('laravelSchema.pipelineTitle')}</h3>
-            <p className="laravel-schema-guide-copy">{t('laravelSchema.pipelineSubtitle')}</p>
-          </div>
-          <ol className="laravel-schema-step-list">
-            {analysisSteps.map(step => <li key={step}>{step}</li>)}
-          </ol>
-        </div>
-      </div>
-
       {loading ? <EmptyState description={t('laravelSchema.loading')} /> : null}
       {!loading && schema && !schema.isLaravel ? <EmptyState description={t('laravelSchema.notLaravel')} /> : null}
       {!loading && schema?.isLaravel && schema.tables.length === 0 ? <EmptyState description={t('laravelSchema.noTables')} /> : null}

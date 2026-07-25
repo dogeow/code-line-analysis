@@ -15,6 +15,17 @@ const CHART_BORDER = '#2a313c';
 const CHART_TOOLTIP_BACKGROUND = '#161b22';
 
 function buildLanguageShareOption(data: FolderStats['byLang'], locale: string): EChartsOption {
+  const total = data.reduce((sum, item) => sum + item.total, 0);
+  const formatPercent = (value: number) => {
+    if (total <= 0) return '0%';
+    const percent = (value / total) * 100;
+    const fractionDigits = percent >= 10 ? 0 : percent >= 1 ? 1 : 2;
+    return `${percent.toLocaleString(locale, {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    })}%`;
+  };
+
   return {
     color: COLORS,
     tooltip: {
@@ -27,18 +38,13 @@ function buildLanguageShareOption(data: FolderStats['byLang'], locale: string): 
         return `${escapeHtml(String(params.name))}<br/>Total: ${value.toLocaleString(locale)}`;
       },
     },
-    legend: {
-      bottom: 0,
-      left: 0,
-      icon: 'circle',
-      textStyle: { color: CHART_TEXT },
-    },
     series: [
       {
         type: 'pie',
-        radius: ['42%', '72%'],
-        center: ['50%', '42%'],
+        radius: ['38%', '65%'],
+        center: ['50%', '50%'],
         avoidLabelOverlap: true,
+        minShowLabelAngle: 0,
         itemStyle: {
           borderColor: '#111722',
           borderWidth: 2,
@@ -51,8 +57,43 @@ function buildLanguageShareOption(data: FolderStats['byLang'], locale: string): 
             formatter: ({ name, value }) => `${name}\n${Number(value).toLocaleString(locale)}`,
           },
         },
-        label: { show: false },
-        labelLine: { show: false },
+        label: {
+          show: true,
+          position: 'outside',
+          alignTo: 'edge',
+          edgeDistance: 12,
+          bleedMargin: 4,
+          color: CHART_TEXT,
+          lineHeight: 16,
+          formatter: ({ name, value }) => {
+            const numericValue = Number(value);
+            return `{name|${name}}\n{value|${formatPercent(numericValue)} · ${numericValue.toLocaleString(locale)}}`;
+          },
+          rich: {
+            name: {
+              color: CHART_TEXT,
+              fontSize: 11,
+              fontWeight: 700,
+            },
+            value: {
+              color: CHART_MUTED,
+              fontSize: 10,
+            },
+          },
+        },
+        labelLine: {
+          show: true,
+          length: 10,
+          length2: 8,
+          smooth: 0.2,
+          lineStyle: {
+            color: CHART_MUTED,
+            width: 1,
+          },
+        },
+        labelLayout: {
+          moveOverlap: 'shiftY',
+        },
         data: data.map((item, index) => ({
           name: item.lang,
           value: item.total,

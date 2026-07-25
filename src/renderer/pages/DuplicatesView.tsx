@@ -1,8 +1,8 @@
 import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChevronRight, Copy, FileCode2, Files, ListTree, SlidersHorizontal } from 'lucide-react';
 import type { FolderRow, DuplicateCluster, FolderRules } from '../../shared/api';
 import { useI18n } from '../i18n';
-import PageHeader from '../components/PageHeader';
 
 interface Props {
   folder: FolderRow | null;
@@ -31,7 +31,6 @@ export default function DuplicatesView({ folder, scanRevision }: Props) {
   const [clusters, setClusters] = useState<DuplicateCluster[]>([]);
   const [duplicateMinLines, setDuplicateMinLines] = useState(8);
   const [duplicateMinLinesDraft, setDuplicateMinLinesDraft] = useState(8);
-  const [applying, setApplying] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [duplicateRules, setDuplicateRules] = useState<FolderRules>({ whitelist: [], blacklist: [] });
   const [duplicateWhiteText, setDuplicateWhiteText] = useState('');
@@ -94,15 +93,10 @@ export default function DuplicatesView({ folder, scanRevision }: Props) {
   async function applyDuplicateMinLines(nextValue: number): Promise<void> {
     if (!folder) return;
     if (!Number.isInteger(nextValue) || nextValue < DUPLICATE_MIN_LINES_MIN || nextValue === duplicateMinLines) return;
-    setApplying(true);
-    try {
-      await window.api.folders.setDuplicateMinLines(folder.id, nextValue);
-      setDuplicateMinLines(nextValue);
-      setDuplicateMinLinesDraft(nextValue);
-      await loadClusters(folder.id);
-    } finally {
-      setApplying(false);
-    }
+    await window.api.folders.setDuplicateMinLines(folder.id, nextValue);
+    setDuplicateMinLines(nextValue);
+    setDuplicateMinLinesDraft(nextValue);
+    await loadClusters(folder.id);
   }
 
   useEffect(() => {
@@ -191,46 +185,77 @@ export default function DuplicatesView({ folder, scanRevision }: Props) {
   if (!folder) return <div className="empty">{t('common.selectFolder')}</div>;
 
   const duplicateMinLinesMax = Math.max(DUPLICATE_MIN_LINES_MAX, duplicateMinLines, duplicateMinLinesDraft);
+  const occurrenceCount = clusters.reduce((sum, cluster) => sum + cluster.occurrences.length, 0);
+  const affectedFileCount = new Set(
+    clusters.flatMap(cluster => cluster.occurrences.map(occurrence => occurrence.relPath)),
+  ).size;
+  const repeatedLineCount = clusters.reduce(
+    (sum, cluster) => sum + (cluster.lines * cluster.occurrences.length),
+    0,
+  );
 
   return (
     <div className="duplicates-page">
-      <PageHeader
-        title={t('duplicates.title', { count: duplicateMinLinesDraft.toLocaleString(locale) })}
-        description={t('duplicates.help')}
-        actions={(
-          <div className="duplicates-toolbar">
-            <label className="page-select-field duplicates-setting-field">
-              <span>{t('duplicates.minLines')}</span>
-              <input
-                type="range"
-                min={DUPLICATE_MIN_LINES_MIN}
-                max={duplicateMinLinesMax}
-                step={1}
-                value={duplicateMinLinesDraft}
-                onChange={event => setDuplicateMinLinesDraft(Number(event.target.value))}
-                className="duplicates-range-input"
-                aria-label={t('duplicates.minLines')}
-              />
-              <output className="duplicates-range-value">{duplicateMinLinesDraft.toLocaleString(locale)}</output>
-            </label>
+      <section className="duplicates-control-panel">
+        <div className="duplicates-control-row">
+          <button type="button" className="duplicates-rules-trigger" onClick={() => setRulesOpen(true)}>
+            <SlidersHorizontal aria-hidden="true" />
+            <span>{t('duplicates.rules')}</span>
+            <span className="duplicates-rule-counts">
+              {duplicateRules.whitelist.length.toLocaleString(locale)} / {duplicateRules.blacklist.length.toLocaleString(locale)}
+            </span>
+          </button>
+          <label className="duplicates-threshold-control">
+            <span className="duplicates-control-label">{t('duplicates.minLines')}</span>
+            <input
+              type="range"
+              min={DUPLICATE_MIN_LINES_MIN}
+              max={duplicateMinLinesMax}
+              step={1}
+              value={duplicateMinLinesDraft}
+              onChange={event => setDuplicateMinLinesDraft(Number(event.target.value))}
+              className="duplicates-range-input"
+              aria-label={t('duplicates.minLines')}
+            />
+            <output className="duplicates-range-value">
+              {duplicateMinLinesDraft.toLocaleString(locale)}
+              <span>{t('common.lines')}</span>
+            </output>
+          </label>
+        </div>
+      </section>
+
+      <div className="cards duplicates-summary-cards">
+        <div className="card metric-card">
+          <ListTree aria-hidden="true" />
+          <div>
+            <div className="label">{t('duplicates.groups')}</div>
+            <div className="value">{clusters.length.toLocaleString(locale)}</div>
           </div>
-        )}
-      />
-      <div className="settings-field-note">
-        {applying ? t('duplicates.refreshing') : t('duplicates.settingHelp', {
-          min: DUPLICATE_MIN_LINES_MIN.toLocaleString(locale),
-          max: duplicateMinLinesMax.toLocaleString(locale),
-        })}
+        </div>
+        <div className="card metric-card">
+          <Copy aria-hidden="true" />
+          <div>
+            <div className="label">{t('duplicates.fragments')}</div>
+            <div className="value">{occurrenceCount.toLocaleString(locale)}</div>
+          </div>
+        </div>
+        <div className="card metric-card">
+          <Files aria-hidden="true" />
+          <div>
+            <div className="label">{t('duplicates.affectedFiles')}</div>
+            <div className="value">{affectedFileCount.toLocaleString(locale)}</div>
+          </div>
+        </div>
+        <div className="card metric-card">
+          <FileCode2 aria-hidden="true" />
+          <div>
+            <div className="label">{t('duplicates.repeatedLines')}</div>
+            <div className="value">{repeatedLineCount.toLocaleString(locale)}</div>
+          </div>
+        </div>
       </div>
-      <div className="duplicates-rules-summary">
-        <span className="muted">{t('duplicates.rules')}</span>
-        <button type="button" className="status-pill duplicates-rules-trigger" onClick={() => setRulesOpen(true)}>
-          {t('folderManager.activeRules', {
-            whitelist: duplicateRules.whitelist.length.toLocaleString(locale),
-            blacklist: duplicateRules.blacklist.length.toLocaleString(locale),
-          })}
-        </button>
-      </div>
+
       {!rulesOpen && (rulesMessage || rulesError) ? (
         <div className={rulesError ? 'settings-field-note error' : 'settings-field-note'}>
           {rulesError || rulesMessage}
@@ -288,20 +313,47 @@ export default function DuplicatesView({ folder, scanRevision }: Props) {
         </div>
       ) : null}
       {clusters.length === 0 && <div className="empty">{t('duplicates.empty')}</div>}
-      {clusters.map(c => (
-        <div key={c.hash} className="card" style={{ marginBottom: 8 }}>
-          <div className="muted">{t('duplicates.hash')}: {c.hash} · {c.occurrences.length.toLocaleString(locale)} {t('duplicates.occurrences')} · {c.lines.toLocaleString(locale)} {t('common.lines')}</div>
-          {c.occurrences.map((o, i) => (
-            <div key={i} className="mono" style={{ cursor: 'pointer' }}
-                 onClick={() => {
-                   saveScrollPosition();
-                   navigate(`/editor/${encodeURIComponent(o.relPath)}?line=${o.startLine}&endLine=${o.endLine}&highlight=duplicate`);
-                 }}>
-              {o.relPath}:{o.startLine}-{o.endLine}
+      <div className="duplicates-list">
+        {clusters.map((cluster, clusterIndex) => (
+          <section key={cluster.hash} className="duplicate-cluster-card">
+            <div className="duplicate-cluster-header">
+              <div className="duplicate-cluster-title">
+                <span className="duplicate-cluster-icon"><Copy aria-hidden="true" /></span>
+                <div>
+                  <strong>{t('duplicates.groupLabel', { index: (clusterIndex + 1).toLocaleString(locale) })}</strong>
+                  <span className="duplicate-cluster-hash" title={cluster.hash}>
+                    {t('duplicates.hash')}: {cluster.hash.slice(0, 12)}
+                  </span>
+                </div>
+              </div>
+              <div className="duplicate-cluster-badges">
+                <span>{cluster.occurrences.length.toLocaleString(locale)} {t('duplicates.occurrences')}</span>
+                <span>{cluster.lines.toLocaleString(locale)} {t('common.lines')}</span>
+              </div>
             </div>
-          ))}
-        </div>
-      ))}
+            <div className="duplicate-occurrence-list">
+              {cluster.occurrences.map((occurrence, occurrenceIndex) => (
+                <button
+                  key={`${occurrence.relPath}:${occurrence.startLine}:${occurrenceIndex}`}
+                  type="button"
+                  className="duplicate-occurrence-row"
+                  onClick={() => {
+                    saveScrollPosition();
+                    navigate(`/editor/${encodeURIComponent(occurrence.relPath)}?line=${occurrence.startLine}&endLine=${occurrence.endLine}&highlight=duplicate`);
+                  }}
+                >
+                  <FileCode2 aria-hidden="true" />
+                  <span className="duplicate-occurrence-path mono">{occurrence.relPath}</span>
+                  <span className="duplicate-occurrence-lines">
+                    {t('duplicates.lineRange', { start: occurrence.startLine, end: occurrence.endLine })}
+                  </span>
+                  <ChevronRight aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }

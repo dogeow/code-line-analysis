@@ -235,7 +235,7 @@ export default function WorkspaceView({
                   onClick={() => void window.api.system.openExternal(repoInfoByFolder[folder.id]!.remoteOriginWebUrl!)}
                 >
                   <ExternalLink aria-hidden="true" />
-                  {formatRemoteLabel(repoInfoByFolder[folder.id]!.remoteOriginWebUrl!)}
+                  <span>{formatRemoteLabel(repoInfoByFolder[folder.id]!.remoteOriginWebUrl!)}</span>
                 </button>
               ) : (
                 <span className="workspace-folder-meta-empty">{t('workspace.noRemoteOrigin')}</span>

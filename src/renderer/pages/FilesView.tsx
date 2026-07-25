@@ -96,7 +96,7 @@ export default function FilesView({ folder, scanRevision }: Props) {
   }
 
   function openFile(relPath: string) {
-    navigate(`/editor/${encodeURIComponent(relPath)}`);
+    navigate(`/editor/${encodeURIComponent(relPath)}`, { state: { sourceNav: '/files' } });
   }
 
   function handleRowKeyDown(event: React.KeyboardEvent<HTMLTableRowElement>, relPath: string) {

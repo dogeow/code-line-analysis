@@ -13,7 +13,7 @@ interface Props {
   scanRevision: number;
 }
 
-const MAX_VISIBLE_NODES = 80;
+const DEFAULT_VISIBLE_NODES = 40;
 const MAX_TABLE_ROWS = 30;
 const CHART_TEXT = '#e6edf3';
 const CHART_MUTED = '#8b949e';
@@ -29,9 +29,9 @@ function nodeScore(node: FileRelationNode): number {
   return (node.incoming * 2) + node.outgoing + Math.min(12, Math.round(node.code / 120));
 }
 
-function getVisibleGraph(graph: FileRelationGraph) {
+function getVisibleGraph(graph: FileRelationGraph, limit: number) {
   const rankedNodes = [...graph.nodes].sort((left, right) => nodeScore(right) - nodeScore(left) || right.code - left.code || left.relPath.localeCompare(right.relPath));
-  const visibleIds = new Set(rankedNodes.slice(0, MAX_VISIBLE_NODES).map(node => node.id));
+  const visibleIds = new Set(rankedNodes.slice(0, limit).map(node => node.id));
 
   return {
     nodes: graph.nodes.filter(node => visibleIds.has(node.id)),
@@ -42,6 +42,8 @@ function getVisibleGraph(graph: FileRelationGraph) {
 export default function RelationsView({ folder, scanRevision }: Props) {
   const [graph, setGraph] = useState<FileRelationGraph | null>(null);
   const [loading, setLoading] = useState(false);
+  const [visibleNodeLimit, setVisibleNodeLimit] = useState(DEFAULT_VISIBLE_NODES);
+  const [showAllLabels, setShowAllLabels] = useState(false);
   const navigate = useNavigate();
   const { locale, t } = useI18n();
 
@@ -68,7 +70,10 @@ export default function RelationsView({ folder, scanRevision }: Props) {
     return () => { ignore = true; };
   }, [folder?.id, scanRevision]);
 
-  const visibleGraph = useMemo(() => (graph ? getVisibleGraph(graph) : { nodes: [], edges: [] }), [graph]);
+  const visibleGraph = useMemo(
+    () => (graph ? getVisibleGraph(graph, visibleNodeLimit) : { nodes: [], edges: [] }),
+    [graph, visibleNodeLimit],
+  );
   const topConnectedFiles = useMemo(
     () => [...(graph?.nodes ?? [])].sort((left, right) => nodeScore(right) - nodeScore(left) || right.code - left.code).slice(0, MAX_TABLE_ROWS),
     [graph],
@@ -84,7 +89,7 @@ export default function RelationsView({ folder, scanRevision }: Props) {
     const prominentIds = new Set(
       [...visibleGraph.nodes]
         .sort((left, right) => nodeScore(right) - nodeScore(left) || right.code - left.code)
-        .slice(0, 14)
+        .slice(0, showAllLabels ? visibleGraph.nodes.length : 10)
         .map(node => node.id),
     );
 
@@ -127,19 +132,32 @@ export default function RelationsView({ folder, scanRevision }: Props) {
           layout: 'force',
           roam: true,
           draggable: true,
-          emphasis: { focus: 'adjacency' },
+          scaleLimit: { min: 0.45, max: 3 },
+          edgeSymbol: ['none', 'arrow'],
+          edgeSymbolSize: [0, 5],
+          emphasis: {
+            focus: 'adjacency',
+            label: { show: true, color: CHART_TEXT, fontWeight: 700 },
+            lineStyle: { opacity: 0.9, width: 2.2 },
+          },
+          blur: {
+            itemStyle: { opacity: 0.18 },
+            lineStyle: { opacity: 0.025 },
+            label: { show: false },
+          },
           force: {
-            repulsion: 230,
-            gravity: 0.05,
-            edgeLength: [36, 120],
-            friction: 0.18,
+            repulsion: 460,
+            gravity: 0.025,
+            edgeLength: [72, 170],
+            friction: 0.28,
           },
           lineStyle: {
             color: 'source',
-            curveness: 0.16,
-            opacity: 0.42,
-            width: 1.2,
+            curveness: 0.12,
+            opacity: 0.2,
+            width: 1,
           },
+          labelLayout: { hideOverlap: true },
           categories: orderedGroups.map(group => ({ name: group })),
           data: visibleGraph.nodes.map(node => ({
             id: node.id,
@@ -150,7 +168,7 @@ export default function RelationsView({ folder, scanRevision }: Props) {
             incoming: node.incoming,
             outgoing: node.outgoing,
             category: groupIndex.get(node.group) ?? 0,
-            symbolSize: 14 + Math.min(30, Math.sqrt((node.incoming + node.outgoing) * 18 + Math.max(node.code, 1) / 18)),
+            symbolSize: 12 + Math.min(25, Math.sqrt((node.incoming + node.outgoing) * 14 + Math.max(node.code, 1) / 24)),
             itemStyle: node.isTest ? { borderColor: '#e2b86b', borderWidth: 2 } : undefined,
             label: prominentIds.has(node.id)
               ? { show: true, color: CHART_TEXT, formatter: basename(node.relPath), overflow: 'truncate', width: 120 }
@@ -160,13 +178,13 @@ export default function RelationsView({ folder, scanRevision }: Props) {
             source: edge.source,
             target: edge.target,
             value: edge.value,
-            lineStyle: { width: 1 + Math.min(2.8, edge.value * 0.8), opacity: 0.42, curveness: 0.16 },
+            lineStyle: { width: 0.8 + Math.min(2.2, edge.value * 0.6), opacity: 0.2, curveness: 0.12 },
           })),
         },
       ],
       textStyle: { color: CHART_MUTED },
     };
-  }, [locale, t, visibleGraph]);
+  }, [locale, showAllLabels, t, visibleGraph]);
 
   if (!folder) return <div className="empty">{t('common.selectFolder')}</div>;
 
@@ -201,6 +219,24 @@ export default function RelationsView({ folder, scanRevision }: Props) {
             </div>
           </div>
 
+          <div className="relations-chart-toolbar">
+            <span className="muted">{t('relations.visibleGraph', { visible: visibleGraph.nodes.length, total: graph.connectedFiles })}</span>
+            <div className="relations-chart-controls">
+              <label className="page-select-field">
+                <span>{t('relations.nodeCount')}</span>
+                <select value={visibleNodeLimit} onChange={event => setVisibleNodeLimit(Number(event.target.value))}>
+                  <option value={30}>30</option>
+                  <option value={40}>40</option>
+                  <option value={50}>50</option>
+                  <option value={80}>80</option>
+                </select>
+              </label>
+              <button type="button" onClick={() => setShowAllLabels(current => !current)}>
+                {showAllLabels ? t('relations.keyLabels') : t('relations.allLabels')}
+              </button>
+            </div>
+          </div>
+
           <div className="chart-box relations-chart-box">
             <EChartsPanel
               option={chartOption}
@@ -217,7 +253,6 @@ export default function RelationsView({ folder, scanRevision }: Props) {
           </div>
 
           <div className="relations-chart-meta">
-            <span>{t('relations.visibleGraph', { visible: visibleGraph.nodes.length, total: graph.connectedFiles })}</span>
             <span>{t('relations.clickHint')}</span>
           </div>
 

@@ -3,12 +3,12 @@ import { NavLink, Routes, Route, useLocation, useNavigate } from 'react-router-d
 import {
   BarChart3,
   Braces,
+  ChevronsUpDown,
   CircleAlert,
   Copy,
   Database,
   Files,
   FolderCog,
-  FolderKanban,
   FolderOpen,
   FolderTree,
   GitBranch,
@@ -37,10 +37,9 @@ import LaravelSchemaView from './pages/LaravelSchemaView';
 import EditorView from './pages/EditorView';
 import WorkspaceView from './pages/WorkspaceView';
 import { useI18n, type Language } from './i18n';
-import { useTheme, type ThemeMode } from './theme';
+import { useTheme } from './theme';
 
 const primaryNavItems = [
-  { to: '/', labelKey: 'nav.workspace', icon: FolderKanban },
   { to: '/dashboard', labelKey: 'nav.dashboard', icon: BarChart3 },
   { to: '/folders', labelKey: 'nav.folderManager', icon: FolderCog },
 ] as const;
@@ -68,6 +67,10 @@ export default function App() {
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [activeSummary, setActiveSummary] = useState<FolderStats | null>(null);
+  const [laravelDetection, setLaravelDetection] = useState<{
+    folderId: number;
+    isLaravel: boolean;
+  } | null>(null);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
   const [scanRevision, setScanRevision] = useState(0);
   const [expandedTreePathsByFolder, setExpandedTreePathsByFolder] = useState<Record<number, string[]>>({});
@@ -118,6 +121,33 @@ export default function App() {
       if (!ignore) setActiveSummary(summary);
     }).catch(() => {
       if (!ignore) setActiveSummary(null);
+    });
+
+    return () => { ignore = true; };
+  }, [activeId, scanRevision]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    if (activeId == null) {
+      setLaravelDetection(null);
+      return () => { ignore = true; };
+    }
+
+    void window.api.stats.laravelSchema(activeId).then(schema => {
+      if (!ignore) {
+        setLaravelDetection({
+          folderId: activeId,
+          isLaravel: schema.isLaravel,
+        });
+      }
+    }).catch(() => {
+      if (!ignore) {
+        setLaravelDetection({
+          folderId: activeId,
+          isLaravel: false,
+        });
+      }
     });
 
     return () => { ignore = true; };
@@ -197,6 +227,9 @@ export default function App() {
   }, [settingsOpen]);
 
   const active = folders.find(f => f.id === activeId) ?? null;
+  const activeIsLaravel = activeId != null && laravelDetection?.folderId === activeId
+    ? laravelDetection.isLaravel
+    : null;
   const activeTagCount = activeSummary
     ? Object.values(activeSummary.tagCounts).reduce((sum, count) => sum + count, 0)
     : null;
@@ -345,56 +378,91 @@ export default function App() {
 
   const scanPercent = progress?.total ? Math.round((progress.done / progress.total) * 100) : 0;
   const isScanning = progress != null && progress.phase !== 'done';
+  const workspaceCardClass = [
+    'sidebar-workspace-card',
+    active?.isAvailable === false ? 'missing' : '',
+    location.pathname === '/' ? 'active' : '',
+  ].filter(Boolean).join(' ');
+  const editorSourceNav = location.pathname.startsWith('/editor/')
+    ? (location.state as { sourceNav?: string } | null)?.sourceNav
+    : undefined;
+  const visibleAnalysisNavItems = analysisNavItems.filter(
+    item => item.to !== '/laravel-schema' || activeIsLaravel === true,
+  );
+
+  useEffect(() => {
+    if (activeIsLaravel === false && location.pathname === '/laravel-schema') {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [activeIsLaravel, location.pathname, navigate]);
 
   function navClassName({ isActive }: { isActive: boolean }) {
     return isActive ? 'nav-link active' : 'nav-link';
   }
 
+  function analysisNavClassName(to: string) {
+    return ({ isActive }: { isActive: boolean }) => (
+      isActive || editorSourceNav === to ? 'nav-link active' : 'nav-link'
+    );
+  }
+
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand-block">
-          <div className="brand-mark">CL</div>
-          <div className="brand-copy">
-            <div className="brand-name">Code Line Analysis</div>
-            <div className="brand-kicker">{t('app.productKicker')}</div>
-          </div>
-        </div>
-
         <div className="sidebar-main">
           <section className="sidebar-section folder-section">
-            <div className="section-label">{t('nav.workspace')}</div>
-            <select
-              aria-label={t('app.selectedFolder')}
-              className="sidebar-folder-select"
-              value={activeId ?? ''}
-              onChange={e => handleSelectFolder(e.target.value)}
-            >
-              <option value="">{t('app.selectFolder')}</option>
-              {folders.map(folder => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.name}{folder.isAvailable ? '' : ` · ${t('workspace.missingShort')}`}
-                </option>
-              ))}
-            </select>
-            {active && (
-              <div className={active.isAvailable ? 'sidebar-workspace-status' : 'sidebar-workspace-status missing'}>
-                <span className="status-dot" aria-hidden="true" />
-                <span className="sidebar-workspace-path">{active.isAvailable ? active.rootPath : t('workspace.locationMissing')}</span>
-                {!active.isAvailable ? (
-                  <button type="button" className="sidebar-relocate-button" onClick={() => void handleRelocateFolder(active)}>
-                    {t('workspace.relocate')}
-                  </button>
-                ) : null}
+            <div className={workspaceCardClass}>
+              <div className="sidebar-workspace-card-main">
+                <NavLink
+                  to="/"
+                  end
+                  className="sidebar-workspace-overview"
+                  aria-label={`${t('nav.workspace')}: ${active?.name ?? t('app.selectFolder')}`}
+                >
+                  <span className="sidebar-workspace-icon" aria-hidden="true">
+                    <FolderOpen />
+                  </span>
+                  <span className="sidebar-workspace-copy">
+                    <span className="sidebar-workspace-caption">{t('nav.workspace')}</span>
+                    <span className="sidebar-workspace-name">{active?.name ?? t('app.selectFolder')}</span>
+                  </span>
+                </NavLink>
+                <span className="sidebar-workspace-switch" title={t('app.selectedFolder')}>
+                  <ChevronsUpDown aria-hidden="true" />
+                  <select
+                    aria-label={t('app.selectedFolder')}
+                    className="sidebar-folder-select"
+                    value={activeId ?? ''}
+                    onChange={e => handleSelectFolder(e.target.value)}
+                  >
+                    <option value="">{t('app.selectFolder')}</option>
+                    {folders.map(folder => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name}{folder.isAvailable ? '' : ` · ${t('workspace.missingShort')}`}
+                      </option>
+                    ))}
+                  </select>
+                </span>
               </div>
-            )}
+              {active && (
+                <div className="sidebar-workspace-status">
+                  <span className="status-dot" aria-hidden="true" />
+                  <span className="sidebar-workspace-path">{active.isAvailable ? active.rootPath : t('workspace.locationMissing')}</span>
+                  {!active.isAvailable ? (
+                    <button type="button" className="sidebar-relocate-button" onClick={() => void handleRelocateFolder(active)}>
+                      {t('workspace.relocate')}
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </div>
           </section>
 
           <nav className="sidebar-nav" aria-label={t('app.views')}>
             <section className="sidebar-section">
               <div className="section-label">{t('app.navPrimary')}</div>
               {primaryNavItems.map(item => (
-                <NavLink key={item.to} to={item.to} end={item.to === '/'} className={navClassName}>
+                <NavLink key={item.to} to={item.to} className={navClassName}>
                   <item.icon className="nav-link-icon" aria-hidden="true" />
                   <span className="nav-link-label">{t(item.labelKey)}</span>
                 </NavLink>
@@ -403,8 +471,8 @@ export default function App() {
 
             <section className="sidebar-section">
               <div className="section-label">{t('app.navAnalysis')}</div>
-              {analysisNavItems.map(item => (
-                <NavLink key={item.to} to={item.to} className={navClassName}>
+              {visibleAnalysisNavItems.map(item => (
+                <NavLink key={item.to} to={item.to} className={analysisNavClassName(item.to)}>
                   <item.icon className="nav-link-icon" aria-hidden="true" />
                   <span className="nav-link-label">{t(item.labelKey)}</span>
                   {item.to === '/tags' && activeTagCount != null ? (
@@ -450,6 +518,15 @@ export default function App() {
             onClick={() => setSettingsOpen(true)}
           >
             <Settings className="settings-icon" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="settings-button theme-toggle-button"
+            aria-label={theme === 'dark' ? t('settings.themeLight') : t('settings.themeDark')}
+            title={theme === 'dark' ? t('settings.themeLight') : t('settings.themeDark')}
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          >
+            {theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
           </button>
           <div className="app-version">v{__APP_VERSION__}</div>
         </div>
@@ -556,29 +633,6 @@ export default function App() {
                     <select aria-label={t('app.language')} value={language} onChange={e => setLanguage(e.target.value as Language)}>
                       {languageOptions.map(option => <option key={option.code} value={option.code}>{option.label}</option>)}
                     </select>
-                  </div>
-                  <div className="settings-option-row">
-                    <div className="settings-option-copy">
-                      <strong>{t('settings.theme')}</strong>
-                      <span>{t('settings.themeHelp')}</span>
-                    </div>
-                    <div className="theme-segmented-control" role="group" aria-label={t('settings.theme')}>
-                      {([
-                        ['light', t('settings.themeLight'), Sun],
-                        ['dark', t('settings.themeDark'), Moon],
-                      ] as const).map(([value, label, Icon]) => (
-                        <button
-                          key={value}
-                          type="button"
-                          aria-pressed={theme === value}
-                          className={theme === value ? 'theme-option active' : 'theme-option'}
-                          onClick={() => setTheme(value as ThemeMode)}
-                        >
-                          <Icon aria-hidden="true" />
-                          {label}
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 </>
               ) : (

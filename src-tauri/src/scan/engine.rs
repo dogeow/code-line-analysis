@@ -1,16 +1,13 @@
 use crate::db::DEFAULT_DUPLICATE_LINES;
 use crate::error::AppResult;
 use crate::parsers::{
-    duplicate::find_duplicate_slices,
-    func_detect::find_functions,
-    languages::detect_lang,
-    line_parser::count_lines,
-    tag_scanner::scan_tags,
+    duplicate::find_duplicate_slices, func_detect::find_functions, languages::detect_lang,
+    line_parser::count_lines, tag_scanner::scan_tags,
 };
 use crate::scan::filters::{is_binary_buffer, is_excluded_asset_path};
 use crate::scan::walk::walk_folder;
-use crate::types::{FolderRules, FolderStats, ScanOptions, ScanProgress};
 use crate::stats::summary_for_folder;
+use crate::types::{FolderRules, FolderStats, ScanOptions, ScanProgress};
 use rayon::prelude::*;
 use rusqlite::Connection;
 use sha1::{Digest, Sha1};
@@ -54,7 +51,10 @@ struct ParsedFile {
 }
 
 fn now_ms() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
 }
 
 fn sha1_hex(buf: &[u8]) -> String {
@@ -64,14 +64,23 @@ fn sha1_hex(buf: &[u8]) -> String {
 }
 
 fn refresh_dups(abs: &Path, size: i64, min_lines: i64) -> Vec<crate::parsers::duplicate::DupSlice> {
-    if size > 5 * 1024 * 1024 { return vec![]; }
-    let Ok(buf) = std::fs::read(abs) else { return vec![] };
-    if is_binary_buffer(&buf) { return vec![]; }
+    if size > 5 * 1024 * 1024 {
+        return vec![];
+    }
+    let Ok(buf) = std::fs::read(abs) else {
+        return vec![];
+    };
+    if is_binary_buffer(&buf) {
+        return vec![];
+    }
     let content = String::from_utf8_lossy(&buf);
     find_duplicate_slices(&content, min_lines)
 }
 
-fn load_existing_map(conn: &Connection, folder_id: i64) -> AppResult<std::collections::HashMap<String, ExistingRow>> {
+fn load_existing_map(
+    conn: &Connection,
+    folder_id: i64,
+) -> AppResult<std::collections::HashMap<String, ExistingRow>> {
     let mut map = std::collections::HashMap::new();
     let mut stmt = conn.prepare(
         "SELECT size, mtime, hash, total, code, comment, blank, block_comment, lang, ext, rel_path
@@ -111,7 +120,10 @@ pub fn scan_folder(
     on_progress: ProgressCb,
 ) -> AppResult<FolderStats> {
     cancel.store(false, Ordering::SeqCst);
-    let duplicate_min_lines = opts.duplicate_min_lines.unwrap_or(DEFAULT_DUPLICATE_LINES).max(3);
+    let duplicate_min_lines = opts
+        .duplicate_min_lines
+        .unwrap_or(DEFAULT_DUPLICATE_LINES)
+        .max(3);
     let full = opts.full.unwrap_or(false);
     let detect_dups = opts.detect_duplicates.unwrap_or(false);
 
@@ -158,20 +170,39 @@ pub fn scan_folder(
     let done = AtomicUsize::new(0);
     let cache_hits = AtomicUsize::new(0);
     let on_progress = Arc::new(on_progress);
+    // Emit at most about 100 parsing updates, while still giving small
+    // workspaces visible progress for every completed file.
+    let progress_step = (total / 100).clamp(1, 50);
 
     let parsed: Vec<Option<ParsedFile>> = rel_paths
         .par_iter()
         .map(|rel| {
-            if cancel.load(Ordering::SeqCst) { return None; }
+            if cancel.load(Ordering::SeqCst) {
+                return None;
+            }
+            let advance_progress = || {
+                let d = done.fetch_add(1, Ordering::Relaxed) + 1;
+                if d % progress_step == 0 || d == total {
+                    on_progress(ScanProgress {
+                        folder_id,
+                        phase: "parsing".into(),
+                        total,
+                        done: d,
+                        current: Some(rel.clone()),
+                        cache_hits: Some(cache_hits.load(Ordering::Relaxed)),
+                    });
+                }
+                d
+            };
             if is_excluded_asset_path(rel) {
-                done.fetch_add(1, Ordering::Relaxed);
+                advance_progress();
                 return None;
             }
             let abs = root.join(rel);
             let meta = match std::fs::metadata(&abs) {
                 Ok(m) if m.is_file() => m,
                 _ => {
-                    done.fetch_add(1, Ordering::Relaxed);
+                    advance_progress();
                     return None;
                 }
             };
@@ -184,7 +215,10 @@ pub fn scan_folder(
                 .unwrap_or(0);
             let (ext, lang_def, lang_id) = detect_lang(rel);
             let duplicate_allowed = !detect_dups
-                || dup_eligible.as_ref().map(|s| s.contains(rel)).unwrap_or(true);
+                || dup_eligible
+                    .as_ref()
+                    .map(|s| s.contains(rel))
+                    .unwrap_or(true);
 
             if let Some(existing) = existing_map.get(rel) {
                 if !full
@@ -202,17 +236,7 @@ pub fn scan_folder(
                         vec![]
                     };
                     cache_hits.fetch_add(1, Ordering::Relaxed);
-                    let d = done.fetch_add(1, Ordering::Relaxed) + 1;
-                    if d % 50 == 0 {
-                        on_progress(ScanProgress {
-                            folder_id,
-                            phase: "parsing".into(),
-                            total,
-                            done: d,
-                            current: Some(rel.clone()),
-                            cache_hits: Some(cache_hits.load(Ordering::Relaxed)),
-                        });
-                    }
+                    advance_progress();
                     return Some(ParsedFile {
                         rel_path: rel.clone(),
                         ext: existing.ext.clone(),
@@ -237,12 +261,12 @@ pub fn scan_folder(
             let buf = match std::fs::read(&abs) {
                 Ok(b) => b,
                 Err(_) => {
-                    done.fetch_add(1, Ordering::Relaxed);
+                    advance_progress();
                     return None;
                 }
             };
             if is_binary_buffer(&buf) {
-                done.fetch_add(1, Ordering::Relaxed);
+                advance_progress();
                 return None;
             }
             let hash = sha1_hex(&buf);
@@ -254,7 +278,10 @@ pub fn scan_folder(
                 {
                     let duplicates = if detect_dups {
                         if duplicate_allowed && size_num <= 5 * 1024 * 1024 {
-                            find_duplicate_slices(&String::from_utf8_lossy(&buf), duplicate_min_lines)
+                            find_duplicate_slices(
+                                &String::from_utf8_lossy(&buf),
+                                duplicate_min_lines,
+                            )
                         } else {
                             vec![]
                         }
@@ -262,17 +289,7 @@ pub fn scan_folder(
                         vec![]
                     };
                     cache_hits.fetch_add(1, Ordering::Relaxed);
-                    let d = done.fetch_add(1, Ordering::Relaxed) + 1;
-                    if d % 50 == 0 {
-                        on_progress(ScanProgress {
-                            folder_id,
-                            phase: "parsing".into(),
-                            total,
-                            done: d,
-                            current: Some(rel.clone()),
-                            cache_hits: Some(cache_hits.load(Ordering::Relaxed)),
-                        });
-                    }
+                    advance_progress();
                     return Some(ParsedFile {
                         rel_path: rel.clone(),
                         ext: existing.ext.clone(),
@@ -298,17 +315,7 @@ pub fn scan_folder(
             if size_num > 5 * 1024 * 1024 {
                 let newlines = buf.iter().filter(|&&b| b == b'\n').count() as i64;
                 let lines = newlines + 1;
-                let d = done.fetch_add(1, Ordering::Relaxed) + 1;
-                if d % 50 == 0 {
-                    on_progress(ScanProgress {
-                        folder_id,
-                        phase: "parsing".into(),
-                        total,
-                        done: d,
-                        current: Some(rel.clone()),
-                        cache_hits: Some(cache_hits.load(Ordering::Relaxed)),
-                    });
-                }
+                advance_progress();
                 return Some(ParsedFile {
                     rel_path: rel.clone(),
                     ext,
@@ -338,17 +345,7 @@ pub fn scan_folder(
             } else {
                 vec![]
             };
-            let d = done.fetch_add(1, Ordering::Relaxed) + 1;
-            if d % 50 == 0 {
-                on_progress(ScanProgress {
-                    folder_id,
-                    phase: "parsing".into(),
-                    total,
-                    done: d,
-                    current: Some(rel.clone()),
-                    cache_hits: Some(cache_hits.load(Ordering::Relaxed)),
-                });
-            }
+            advance_progress();
             Some(ParsedFile {
                 rel_path: rel.clone(),
                 ext,
@@ -401,7 +398,8 @@ pub fn scan_folder(
             .iter()
             .filter_map(|p| p.as_ref().map(|x| x.rel_path.as_str()))
             .collect();
-        let mut stmt = tx.prepare("SELECT id, rel_path FROM files WHERE folder_id = ? AND deleted = 0")?;
+        let mut stmt =
+            tx.prepare("SELECT id, rel_path FROM files WHERE folder_id = ? AND deleted = 0")?;
         let rows: Vec<(i64, String)> = stmt
             .query_map([folder_id], |r| Ok((r.get(0)?, r.get(1)?)))?
             .flatten()

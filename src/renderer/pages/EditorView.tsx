@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Editor, { OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import type { FolderRow, FileMeta, GitFileInfo, TagRow } from '../../shared/api';
@@ -31,6 +31,7 @@ export default function EditorView({ folder, scanRevision }: Props) {
   const { relPath = '' } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { locale, t } = useI18n();
   const { theme } = useTheme();
   const decodedPath = relPath;
@@ -122,7 +123,10 @@ export default function EditorView({ folder, scanRevision }: Props) {
 
   function jumpToLine(lineNumber: number) {
     if (!decodedPath) return;
-    navigate(`/editor/${encodeURIComponent(decodedPath)}?line=${lineNumber}`, { replace: true });
+    navigate(`/editor/${encodeURIComponent(decodedPath)}?line=${lineNumber}`, {
+      replace: true,
+      state: location.state,
+    });
     revealTargetLine(lineNumber);
   }
 
@@ -238,26 +242,38 @@ export default function EditorView({ folder, scanRevision }: Props) {
 
   return (
     <div className="editor-page">
-      <div className="toolbar">
-        <button onClick={() => navigate(-1)}>← {t('editor.back')}</button>
-        <strong className="mono">{decodedPath}</strong>
-        {meta && <span className="muted editor-toolbar-meta">
-          {meta.lang} · {meta.total.toLocaleString(locale)} {t('common.lines')} · {(meta.size/1024).toFixed(1)} KB · {t('editor.mtime')} {new Date(meta.mtime).toLocaleString(locale)}
-        </span>}
-        <span style={{ flex: 1 }} />
-        <label><input type="checkbox" checked={!readOnly} onChange={e => setReadOnly(!e.target.checked)} /> {t('editor.editMode')}</label>
-        <button className="primary" disabled={readOnly || !dirty || saving} onClick={save}>{saving ? t('editor.saving') : t('editor.save')}</button>
-      </div>
+      <header className="editor-header">
+        <div className="editor-toolbar-main">
+          <div className="editor-toolbar-file">
+            <button type="button" onClick={() => navigate(-1)}>← {t('editor.back')}</button>
+            <div className="editor-file-summary">
+              <strong className="mono editor-file-path" title={decodedPath}>{decodedPath}</strong>
+              {meta && <span className="muted editor-toolbar-meta">
+                {meta.lang} · {meta.total.toLocaleString(locale)} {t('common.lines')} · {(meta.size/1024).toFixed(1)} KB · {t('editor.mtime')} {new Date(meta.mtime).toLocaleString(locale)}
+              </span>}
+            </div>
+          </div>
+          <div className="editor-toolbar-actions">
+            <label className="editor-mode-toggle">
+              <input type="checkbox" checked={!readOnly} onChange={e => setReadOnly(!e.target.checked)} />
+              <span>{t('editor.editMode')}</span>
+            </label>
+            <button type="button" className="primary" disabled={readOnly || !dirty || saving} onClick={save}>
+              {saving ? t('editor.saving') : t('editor.save')}
+            </button>
+          </div>
+        </div>
+        {git && (
+          <div className="muted editor-git-summary">
+            {t('editor.git')}: {git.lastSha?.slice(0, 7) || '—'} {t('editor.gitBy')} {git.lastAuthor || '—'} {t('editor.gitOn')} {git.lastDate ? new Date(git.lastDate).toLocaleDateString(locale) : '—'}
+            {git.topAuthors.length > 0 && <> · {t('editor.gitTop')}: {git.topAuthors.map(a => `${a.author} (${a.lines.toLocaleString(locale)})`).join(', ')}</>}
+          </div>
+        )}
+      </header>
       {error && <div className="card" style={{ borderColor: 'var(--bad)', color: 'var(--bad)' }}>{error}</div>}
       {!error && !editorReady && meta && (
         <div className="card" style={{ marginBottom: 8 }}>
           {t('editor.monacoLoading')}
-        </div>
-      )}
-      {git && (
-        <div className="muted" style={{ marginBottom: 8 }}>
-          {t('editor.git')}: {git.lastSha?.slice(0, 7) || '—'} {t('editor.gitBy')} {git.lastAuthor || '—'} {t('editor.gitOn')} {git.lastDate ? new Date(git.lastDate).toLocaleDateString(locale) : '—'}
-          {git.topAuthors.length > 0 && <> · {t('editor.gitTop')}: {git.topAuthors.map(a => `${a.author} (${a.lines.toLocaleString(locale)})`).join(', ')}</>}
         </div>
       )}
       {groupedFileTags.length > 0 && (

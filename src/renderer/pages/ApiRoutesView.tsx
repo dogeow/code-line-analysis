@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import type { ApiRouteEntry, ApiRouteOverview, FolderRow } from '../../shared/api';
 import EChartsPanel from '../components/EChartsPanel';
 import EmptyState from '../components/EmptyState';
-import PageHeader from '../components/PageHeader';
 import { useI18n } from '../i18n';
 import { escapeHtml } from '../utils/escapeHtml';
 
@@ -204,11 +203,10 @@ function routeKey(route: ApiRouteEntry): string {
   return [route.framework, route.path, route.handler, route.sourceFile, route.routeName ?? '', route.methods.join(',')].join('|');
 }
 
-function translateApiRouteWarning(warning: string, t: ReturnType<typeof useI18n>['t']): string {
-  if (warning === 'Laravel route groups are expanded best-effort; dynamic group attributes or runtime-defined routes can still be incomplete.') {
-    return t('apiRoutes.warningGroupBestEffort');
-  }
+const LARAVEL_GROUP_BEST_EFFORT_WARNING =
+  'Laravel route groups are expanded best-effort; dynamic group attributes or runtime-defined routes can still be incomplete.';
 
+function translateApiRouteWarning(warning: string, t: ReturnType<typeof useI18n>['t']): string {
   const missingIncludedFilesMatch = warning.match(/^Laravel included route files were referenced but not found in the scan:\s*(.+)$/);
   if (missingIncludedFilesMatch?.[1]) {
     return t('apiRoutes.warningMissingIncludedFiles', { value: missingIncludedFilesMatch[1] });
@@ -1180,36 +1178,29 @@ export default function ApiRoutesView({ folder, scanRevision }: Props) {
 
   if (!folder) return <div className="empty">{t('common.selectFolder')}</div>;
 
+  const visibleWarnings = (overview?.warnings ?? []).filter(warning => warning !== LARAVEL_GROUP_BEST_EFFORT_WARNING);
+
   return (
     <div className="api-routes-page">
-      <PageHeader
-        title={t('apiRoutes.title')}
-        description={t('apiRoutes.subtitle')}
-        actions={(
-          <div className="api-routes-filters">
-            <input
-              value={searchText}
-              onChange={event => setSearchText(event.target.value)}
-              placeholder={t('apiRoutes.searchPlaceholder')}
-            />
-            <label className="page-select-field">
-              <span>{t('apiRoutes.framework')}</span>
-              <select value={frameworkFilter} onChange={event => setFrameworkFilter(event.target.value as 'all' | ApiRouteEntry['framework'])}>
-                <option value="all">{t('apiRoutes.allFrameworks')}</option>
-                {(overview?.frameworks ?? []).map(framework => (
-                  <option key={framework} value={framework}>{frameworkLabel(framework, t)}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-        )}
-      />
+      <div className="api-routes-overview-toolbar">
+        <div className="api-routes-filters">
+          <input
+            value={searchText}
+            onChange={event => setSearchText(event.target.value)}
+            placeholder={t('apiRoutes.searchPlaceholder')}
+          />
+          <label className="page-select-field">
+            <span>{t('apiRoutes.framework')}</span>
+            <select value={frameworkFilter} onChange={event => setFrameworkFilter(event.target.value as 'all' | ApiRouteEntry['framework'])}>
+              <option value="all">{t('apiRoutes.allFrameworks')}</option>
+              {(overview?.frameworks ?? []).map(framework => (
+                <option key={framework} value={framework}>{frameworkLabel(framework, t)}</option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-      {loading ? <EmptyState description={t('apiRoutes.loading')} /> : null}
-      {!loading && overview && overview.routes.length === 0 ? <EmptyState description={t('apiRoutes.noData')} /> : null}
-
-      {!loading && overview && overview.routes.length > 0 ? (
-        <>
+        {!loading && overview && overview.routes.length > 0 ? (
           <div className="cards api-routes-cards">
             <div className="card metric-card"><div className="label">{t('apiRoutes.routes')}</div><div className="value">{overview.routes.length.toLocaleString(locale)}</div></div>
             <div className="card metric-card"><div className="label">{t('apiRoutes.frameworks')}</div><div className="value">{overview.frameworks.length.toLocaleString(locale)}</div></div>
@@ -1220,15 +1211,21 @@ export default function ApiRoutesView({ folder, scanRevision }: Props) {
               <div className="card metric-card"><div className="label">{t('apiRoutes.nextFiles')}</div><div className="value">{overview.nextRouteFiles.toLocaleString(locale)}</div></div>
             )}
           </div>
+        ) : null}
+      </div>
 
-          {overview.warnings.length > 0 ? (
+      {loading ? <EmptyState description={t('apiRoutes.loading')} /> : null}
+      {!loading && overview && overview.routes.length === 0 ? <EmptyState description={t('apiRoutes.noData')} /> : null}
+
+      {!loading && overview && overview.routes.length > 0 ? (
+        <>
+          {visibleWarnings.length > 0 ? (
             <div className="api-routes-warning-list">
-              {overview.warnings.map(warning => <div key={warning} className="settings-field-note">{translateApiRouteWarning(warning, t)}</div>)}
+              {visibleWarnings.map(warning => <div key={warning} className="settings-field-note">{translateApiRouteWarning(warning, t)}</div>)}
             </div>
           ) : null}
 
           <div className="api-routes-summary-bar">
-            <div className="api-routes-summary">{t('apiRoutes.filteredCount', { shown: filteredRoutes.length, total: overview.routes.length })}</div>
             <div className="api-routes-toolbar-strip">
               <div className="api-routes-view-strip" aria-label={t('apiRoutes.viewMode')}>
                 <button
@@ -1291,6 +1288,7 @@ export default function ApiRoutesView({ folder, scanRevision }: Props) {
                 ))}
               </div>
             </div>
+            <div className="api-routes-summary">{t('apiRoutes.filteredCount', { shown: filteredRoutes.length, total: overview.routes.length })}</div>
           </div>
 
           {filteredRoutes.length === 0 ? <EmptyState description={t('apiRoutes.noMatches')} /> : null}
