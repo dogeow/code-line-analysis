@@ -28,10 +28,11 @@ src-tauri/src/
 ```bash
 npm run dev
 npm run build
+npm run typecheck
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-CI（`.github/workflows/ci.yml`）：`npm run build:ui` + `cargo check`。
+CI（`.github/workflows/ci.yml`）：`npm run typecheck` + `npm run build:ui` + `cargo test`。
 
 ## 规范
 

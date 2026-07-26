@@ -19,6 +19,7 @@ pub fn open_db(app_data_dir: &Path) -> AppResult<Connection> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     migrate(&conn)?;
     cleanup_excluded(&conn)?;
+    recover_typescript_rows(&conn)?;
     Ok(conn)
 }
 
@@ -112,6 +113,17 @@ fn cleanup_excluded(conn: &Connection) -> AppResult<()> {
         .map(|e| e as &dyn rusqlite::ToSql)
         .collect();
     stmt.execute(params.as_slice())?;
+    Ok(())
+}
+
+/// One-time recovery: "ts" used to sit in EXCLUDED_ASSET_EXTENSIONS (meant as MPEG
+/// transport stream), so cleanup_excluded soft-deleted every TypeScript row on each
+/// start. Restore those rows so existing databases surface .ts files without a rescan.
+fn recover_typescript_rows(conn: &Connection) -> AppResult<()> {
+    conn.execute(
+        "UPDATE files SET deleted = 0 WHERE deleted = 1 AND ext = 'ts' AND lang != 'Binary'",
+        [],
+    )?;
     Ok(())
 }
 

@@ -25,13 +25,21 @@ import type { FileRelationGraph } from '@shared/fileRelations';
 import type { LaravelSchemaGraph } from '@shared/laravelSchema';
 
 function subscribe<T>(event: string, callback: (payload: T) => void): () => void {
+  let disposed = false;
   let unlisten: UnlistenFn | null = null;
   void listen<T>(event, (e) => {
     callback(e.payload);
   }).then((fn) => {
-    unlisten = fn;
+    // Cleanup may run before listen() resolves; unlisten immediately so the
+    // listener does not leak (StrictMode double-mounts hit this path).
+    if (disposed) {
+      void fn();
+    } else {
+      unlisten = fn;
+    }
   });
   return () => {
+    disposed = true;
     unlisten?.();
   };
 }

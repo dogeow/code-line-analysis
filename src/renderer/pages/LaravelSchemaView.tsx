@@ -5,6 +5,7 @@ import type { FolderRow, LaravelSchemaGraph, LaravelSchemaRelation } from '../..
 import EChartsPanel from '../components/EChartsPanel';
 import EmptyState from '../components/EmptyState';
 import { useI18n } from '../i18n';
+import { firstFormatterParam } from '../utils/echartsParams';
 import { escapeHtml } from '../utils/escapeHtml';
 
 interface Props {
@@ -161,12 +162,14 @@ export default function LaravelSchemaView({ folder, scanRevision }: Props) {
       borderColor: CHART_BORDER,
       textStyle: { color: CHART_TEXT },
       formatter: params => {
-        if (params.dataType === 'edge') {
-          const data = params.data as { kind: string; label?: string };
-          return escapeHtml(data.label ?? data.kind);
+        const param = firstFormatterParam(params);
+        if (!param) return '';
+        if (param.dataType === 'edge') {
+          const data = param.data as { kind: string; relationLabel?: string };
+          return escapeHtml(data.relationLabel ?? data.kind);
         }
 
-        const data = params.data as { name: string; tableName: string; modelClass: string | null; relations: number };
+        const data = param.data as { name: string; tableName: string; modelClass: string | null; relations: number };
         return [
           escapeHtml(data.name),
           `${t('laravelSchema.relations')}: ${data.relations.toLocaleString(locale)}`,
@@ -223,7 +226,8 @@ export default function LaravelSchemaView({ folder, scanRevision }: Props) {
           source: relation.sourceTable,
           target: relation.targetTable,
           kind: relation.kind,
-          label: relation.label,
+          // Tooltip payload only; named to avoid clashing with the ECharts `label` option.
+          relationLabel: relation.label,
           relationKey: relationKey(relation),
           lineStyle: relationLineStyle(relation.kind),
         })),
@@ -295,7 +299,7 @@ export default function LaravelSchemaView({ folder, scanRevision }: Props) {
               onEvents={{
                 click: params => {
                   if (typeof params === 'object' && params && 'dataType' in params && params.dataType === 'edge') {
-                    const nextRelationKey = typeof params.data === 'object' && params.data && 'relationKey' in params.data
+                    const nextRelationKey = 'data' in params && typeof params.data === 'object' && params.data && 'relationKey' in params.data
                       ? String(params.data.relationKey)
                       : null;
                     if (nextRelationKey) setSelectedRelationKey(nextRelationKey);
@@ -303,7 +307,7 @@ export default function LaravelSchemaView({ folder, scanRevision }: Props) {
                   }
 
                   const tableName = typeof params === 'object' && params && 'dataType' in params && params.dataType === 'node'
-                    && typeof params.data === 'object' && params.data && 'id' in params.data
+                    && 'data' in params && typeof params.data === 'object' && params.data && 'id' in params.data
                     ? String(params.data.id)
                     : null;
                   const table = tableName ? schema.tables.find(item => item.name === tableName) : null;

@@ -11,6 +11,9 @@ concurrency:
 
 jobs:
   deploy:
+    # Manual dispatch runs from the default branch (main), whose renderer
+    # requires Tauri — only the electron branch build is deployable.
+    if: github.ref == 'refs/heads/electron'
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v5

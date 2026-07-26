@@ -10,14 +10,13 @@
     "dev:ui": "vite --config vite.config.ts",
     "build:ui": "vite build --config vite.config.ts",
     "build": "tauri build",
+    "typecheck": "tsc --noEmit -p tsconfig.renderer.json",
     "tauri": "tauri"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.2",
-    "@tauri-apps/plugin-opener": "^2.5.4",
-    "@tauri-apps/plugin-shell": "^2.3.5",
     "echarts": "^5.6.0",
     "lucide-react": "^0.468.0",
     "monaco-editor": "^0.52.0",

@@ -9,7 +9,7 @@ pub struct LineCounts {
     pub block_comment: i64,
 }
 
-fn find_char_offset(haystack: &str, needle: &str) -> Option<usize> {
+pub(crate) fn find_char_offset(haystack: &str, needle: &str) -> Option<usize> {
     haystack
         .find(needle)
         .map(|byte_offset| haystack[..byte_offset].chars().count())

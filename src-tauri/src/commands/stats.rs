@@ -23,22 +23,31 @@ pub fn stats_tree(state: State<'_, AppState>, folder_id: i64) -> AppResult<DirNo
 }
 
 #[tauri::command]
-pub fn stats_top_files(
+pub async fn stats_top_files(
     state: State<'_, AppState>,
     folder_id: i64,
     limit: Option<i64>,
     sort_by: Option<String>,
 ) -> AppResult<Vec<TopFile>> {
-    let conn = state.db.lock();
-    let limit = limit.unwrap_or(50);
     let sort_by = sort_by.unwrap_or_else(|| "total".into());
-    let mut rows = stats::get_top_files(&conn, folder_id, limit, &sort_by)?;
-    let root = db::folder_root(&conn, folder_id).ok().map(PathBuf::from);
-    drop(conn);
+    let (mut rows, root) = {
+        let conn = state.db.lock();
+        let limit = limit.unwrap_or(50);
+        let rows = stats::get_top_files(&conn, folder_id, limit, &sort_by)?;
+        let root = db::folder_root(&conn, folder_id).ok().map(PathBuf::from);
+        (rows, root)
+    };
 
     if let Some(root) = root {
+        // One batched git log for all rows, off-thread so a large history
+        // never blocks the IPC/main thread.
+        let rel_paths: Vec<String> = rows.iter().map(|r| r.rel_path.clone()).collect();
+        let dates =
+            tauri::async_runtime::spawn_blocking(move || git::get_git_last_dates(&root, &rel_paths))
+                .await
+                .unwrap_or_default();
         for row in &mut rows {
-            row.last_commit_date = git::get_git_file_last_date(&root, &row.rel_path);
+            row.last_commit_date = dates.get(&row.rel_path).copied();
         }
         if sort_by == "lastCommitDate" {
             rows.sort_by(|a, b| b.last_commit_date.cmp(&a.last_commit_date));

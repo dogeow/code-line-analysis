@@ -6,6 +6,7 @@ import EChartsPanel from '../components/EChartsPanel';
 import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
 import { useI18n } from '../i18n';
+import { firstFormatterParam } from '../utils/echartsParams';
 import { escapeHtml } from '../utils/escapeHtml';
 
 interface Props {
@@ -106,11 +107,14 @@ export default function RelationsView({ folder, scanRevision }: Props) {
         borderColor: CHART_BORDER,
         textStyle: { color: CHART_TEXT },
         formatter: params => {
-          if (params.dataType === 'edge') {
-            return `${escapeHtml(String(params.data.source))}<br/>→ ${escapeHtml(String(params.data.target))}`;
+          const param = firstFormatterParam(params);
+          if (!param) return '';
+          if (param.dataType === 'edge') {
+            const edge = param.data as { source?: unknown; target?: unknown };
+            return `${escapeHtml(String(edge.source))}<br/>→ ${escapeHtml(String(edge.target))}`;
           }
 
-          const data = params.data as {
+          const data = param.data as {
             relPath: string;
             lang: string;
             code: number;
@@ -243,7 +247,7 @@ export default function RelationsView({ folder, scanRevision }: Props) {
               onEvents={{
                 click: params => {
                   const relPath = typeof params === 'object' && params && 'dataType' in params && params.dataType === 'node'
-                    && typeof params.data === 'object' && params.data && 'relPath' in params.data
+                    && 'data' in params && typeof params.data === 'object' && params.data && 'relPath' in params.data
                     ? String(params.data.relPath)
                     : null;
                   if (relPath) navigate(`/editor/${encodeURIComponent(relPath)}`);

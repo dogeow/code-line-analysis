@@ -6,7 +6,10 @@ import EChartsPanel from '../components/EChartsPanel';
 import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
 import { useI18n } from '../i18n';
+import { axisValueLabelOf, firstFormatterParam } from '../utils/echartsParams';
 import { escapeHtml } from '../utils/escapeHtml';
+
+type Translator = ReturnType<typeof useI18n>['t'];
 
 const COLORS = ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#a371f7', '#79c0ff', '#56d364', '#ffa657', '#ff7b72', '#d2a8ff'];
 const CHART_TEXT = '#e6edf3';
@@ -34,8 +37,10 @@ function buildLanguageShareOption(data: FolderStats['byLang'], locale: string): 
       borderColor: CHART_BORDER,
       textStyle: { color: CHART_TEXT },
       formatter: params => {
-        const value = typeof params.value === 'number' ? params.value : Number(params.value || 0);
-        return `${escapeHtml(String(params.name))}<br/>Total: ${value.toLocaleString(locale)}`;
+        const param = firstFormatterParam(params);
+        if (!param) return '';
+        const value = typeof param.value === 'number' ? param.value : Number(param.value || 0);
+        return `${escapeHtml(String(param.name))}<br/>Total: ${value.toLocaleString(locale)}`;
       },
     },
     series: [
@@ -104,7 +109,7 @@ function buildLanguageShareOption(data: FolderStats['byLang'], locale: string): 
   };
 }
 
-function buildLanguageBreakdownOption(data: FolderStats['byLang'], locale: string, t: (key: string, params?: Record<string, unknown>) => string): EChartsOption {
+function buildLanguageBreakdownOption(data: FolderStats['byLang'], locale: string, t: Translator): EChartsOption {
   const labels = data.map(item => item.lang);
 
   return {
@@ -117,7 +122,7 @@ function buildLanguageBreakdownOption(data: FolderStats['byLang'], locale: strin
       formatter: params => {
         const points = Array.isArray(params) ? params : [params];
         return [
-          escapeHtml(String(points[0]?.axisValueLabel ?? '')),
+          escapeHtml(axisValueLabelOf(points[0])),
           ...points.map(point => `${point.marker}${point.seriesName}: ${Number(point.value).toLocaleString(locale)}`),
         ].join('<br/>');
       },

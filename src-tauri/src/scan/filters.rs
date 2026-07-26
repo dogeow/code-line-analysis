@@ -1,7 +1,7 @@
 pub const EXCLUDED_ASSET_EXTENSIONS: &[&str] = &[
     "jpg","jpeg","png","gif","webp","bmp","ico","svg","avif","heic","heif","tif","tiff","psd",
     "mp3","wav","flac","aac","m4a","ogg","oga","opus","wma","aiff","aif","mid","midi",
-    "mp4","mov","m4v","avi","mkv","webm","wmv","flv","mpeg","mpg","3gp","ts",
+    "mp4","mov","m4v","avi","mkv","webm","wmv","flv","mpeg","mpg","3gp",
     "txt","log","dat",
     "bin","exe","dll","so","dylib","class","jar","war","ear","apk","ipa","pdf","zip","tar","gz",
     "bz2","xz","7z","rar","woff","woff2","ttf","otf","eot","sqlite","db","pyc","pyo","wasm",
@@ -28,4 +28,19 @@ pub fn is_binary_buffer(buf: &[u8]) -> bool {
         if !printable && !ws && !utf8_high { suspicious += 1; }
     }
     (suspicious as f64) / (probe.len() as f64) > 0.1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_excluded_asset_path;
+
+    #[test]
+    fn typescript_files_are_not_excluded() {
+        assert!(!is_excluded_asset_path("src/route.ts"));
+    }
+
+    #[test]
+    fn asset_extensions_are_excluded() {
+        assert!(is_excluded_asset_path("video.mp4"));
+    }
 }

@@ -1,4 +1,5 @@
 use super::languages::LangDef;
+use super::line_parser::find_char_offset;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -58,8 +59,9 @@ pub fn scan_tags(content: &str, lang: Option<&LangDef>) -> Vec<FoundTag> {
             if let Some((_, end)) = in_block {
                 let rest: String = chars[index..].iter().collect();
                 if let Some(pos) = rest.find(end) {
+                    // pos is a byte offset: slice with it, advance the char cursor in chars
                     comment_parts.push(rest[..pos].to_string());
-                    index += pos + end.chars().count();
+                    index += rest[..pos].chars().count() + end.chars().count();
                     in_block = None;
                 } else {
                     comment_parts.push(rest);
@@ -69,7 +71,7 @@ pub fn scan_tags(content: &str, lang: Option<&LangDef>) -> Vec<FoundTag> {
             }
             if let Some((_, end)) = in_string {
                 let rest: String = chars[index..].iter().collect();
-                if let Some(pos) = rest.find(end) {
+                if let Some(pos) = find_char_offset(&rest, end) {
                     index += pos + end.chars().count();
                     in_string = None;
                 } else {
@@ -93,8 +95,9 @@ pub fn scan_tags(content: &str, lang: Option<&LangDef>) -> Vec<FoundTag> {
                     let after = index + start.chars().count();
                     let rest2: String = chars[after..].iter().collect();
                     if let Some(pos) = rest2.find(end) {
+                        // pos is a byte offset: slice with it, advance the char cursor in chars
                         comment_parts.push(rest2[..pos].to_string());
-                        index = after + pos + end.chars().count();
+                        index = after + rest2[..pos].chars().count() + end.chars().count();
                     } else {
                         comment_parts.push(rest2);
                         in_block = Some((start, end));
@@ -121,4 +124,21 @@ pub fn scan_tags(content: &str, lang: Option<&LangDef>) -> Vec<FoundTag> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scan_tags;
+    use crate::parsers::languages::detect_lang;
+
+    #[test]
+    fn finds_tag_after_unicode_block_comment() {
+        let (_, lang, _) = detect_lang("example.ts");
+        let tags = scan_tags("/* 中文说明 */ // TODO: fix this", lang.as_ref());
+
+        assert_eq!(tags.len(), 1);
+        assert_eq!(tags[0].kind, "TODO");
+        assert_eq!(tags[0].text, "fix this");
+        assert_eq!(tags[0].line_no, 1);
+    }
 }

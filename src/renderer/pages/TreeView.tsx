@@ -223,6 +223,9 @@ export default function TreeView({ folder, scanRevision, expandedPaths, onToggle
     function updateCurrentDirPath(): void {
       rafId = null;
 
+      // Re-narrow for TS: the outer null checks are not retained inside this closure.
+      if (!treePage || !(scrollContainer instanceof HTMLElement)) return;
+
       const rows = Array.from(treePage.querySelectorAll<HTMLElement>('.tree-node .row[data-tree-path]'));
       if (rows.length === 0) {
         setCurrentDirPath('');

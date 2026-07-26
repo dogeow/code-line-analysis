@@ -46,7 +46,23 @@ pub fn init_scan_scheduler(app: AppHandle) {
                         let result = perform_scan(&worker_app, state.inner(), folder_id, opts);
                         match &result {
                             Ok(_) => log::info!("scan finished for folder {folder_id}"),
-                            Err(e) => log::warn!("scan failed for folder {folder_id}: {e}"),
+                            Err(e) => {
+                                log::warn!("scan failed for folder {folder_id}: {e}");
+                                // The engine only emits a terminal "done" on success or
+                                // cooperative cancel; emit one here on failure so the
+                                // frontend's isScanning flag never sticks.
+                                let _ = worker_app.emit(
+                                    "scan:progress",
+                                    ScanProgress {
+                                        folder_id,
+                                        phase: "done".into(),
+                                        total: 0,
+                                        done: 0,
+                                        current: None,
+                                        cache_hits: None,
+                                    },
+                                );
+                            }
                         }
                         if let Some(reply) = reply {
                             let _ = reply.send(result);
@@ -132,7 +148,7 @@ pub fn enqueue_folder_scan(app: AppHandle, folder_id: i64, opts: ScanOptions) {
 }
 
 #[tauri::command]
-pub fn scan_run(
+pub async fn scan_run(
     app: AppHandle,
     folder_id: i64,
     opts: Option<ScanOptions>,
@@ -147,8 +163,11 @@ pub fn scan_run(
             reply: Some(reply_tx),
         })
         .map_err(|_| AppError::msg("Scan queue unavailable"))?;
-    reply_rx
-        .recv()
+    // Wait for the queue worker off-thread so the IPC/main thread stays free
+    // for scan_cancel and scan:progress delivery during long scans.
+    tauri::async_runtime::spawn_blocking(move || reply_rx.recv())
+        .await
+        .map_err(|_| AppError::msg("Scan reply task failed"))?
         .map_err(|_| AppError::msg("Scan worker disconnected"))?
 }
 

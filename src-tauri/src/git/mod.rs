@@ -59,17 +59,71 @@ pub fn get_git_file_info(root: &Path, rel_path: &str) -> AppResult<Option<GitFil
     }))
 }
 
-pub fn get_git_file_last_date(root: &Path, rel_path: &str) -> Option<i64> {
-    if !is_repo(root) {
-        return None;
+/// Consume one line of `git log --pretty=format:__CLA_COMMIT__%aI --name-only`
+/// output (newest commit first). The first commit that mentions a path is its
+/// last-touch date. Returns `false` once every wanted path is resolved so the
+/// caller can stop reading.
+fn consume_git_log_line(
+    line: &str,
+    wanted: &std::collections::HashSet<&str>,
+    current_ts: &mut Option<i64>,
+    out: &mut HashMap<String, i64>,
+) -> bool {
+    if let Some(date) = line.strip_prefix("__CLA_COMMIT__") {
+        *current_ts = chrono::DateTime::parse_from_rfc3339(date.trim())
+            .ok()
+            .map(|d| d.timestamp_millis());
+        return true;
     }
-    let log = run_git(
-        root,
-        &["log", "-n", "1", "--pretty=format:%aI", "--", rel_path],
-    )?;
-    chrono::DateTime::parse_from_rfc3339(log.trim())
-        .ok()
-        .map(|d| d.timestamp_millis())
+    let path = line.trim();
+    if path.is_empty() {
+        return true;
+    }
+    if let Some(ts) = *current_ts {
+        if wanted.contains(path) && !out.contains_key(path) {
+            out.insert(path.to_string(), ts);
+            if out.len() == wanted.len() {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Batch variant of the per-file last-commit-date lookup: one `git rev-parse`
+/// plus one streamed `git log` instead of two subprocesses per file. Paths
+/// never committed are simply absent from the returned map.
+pub fn get_git_last_dates(root: &Path, rel_paths: &[String]) -> HashMap<String, i64> {
+    use std::io::BufRead;
+
+    let mut out = HashMap::new();
+    if rel_paths.is_empty() || !is_repo(root) {
+        return out;
+    }
+    let wanted: std::collections::HashSet<&str> = rel_paths.iter().map(String::as_str).collect();
+    let Ok(mut child) = Command::new("git")
+        .args(["log", "--pretty=format:__CLA_COMMIT__%aI", "--name-only"])
+        .current_dir(root)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    else {
+        return out;
+    };
+    if let Some(stdout) = child.stdout.take() {
+        let mut current_ts: Option<i64> = None;
+        for line in std::io::BufReader::new(stdout).lines() {
+            let Ok(line) = line else { break };
+            if !consume_git_log_line(&line, &wanted, &mut current_ts, &mut out) {
+                break;
+            }
+        }
+    }
+    // Stop early once all paths are resolved; kill the log process if it is
+    // still producing history.
+    let _ = child.kill();
+    let _ = child.wait();
+    out
 }
 
 fn normalize_remote_web(url: &str) -> Option<String> {
@@ -175,4 +229,82 @@ pub fn get_git_heatmap(root: &Path, days: i64) -> AppResult<Vec<HeatmapBucket>> 
         .collect();
     out.sort_by(|a, b| a.date.cmp(&b.date));
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    /// Drive `consume_git_log_line` over a full log output the way
+    /// `get_git_last_dates` streams it.
+    fn parse_log(raw: &str, rel_paths: &[&str]) -> HashMap<String, i64> {
+        let wanted: HashSet<&str> = rel_paths.iter().copied().collect();
+        let mut out = HashMap::new();
+        let mut current_ts: Option<i64> = None;
+        for line in raw.lines() {
+            if !consume_git_log_line(line, &wanted, &mut current_ts, &mut out) {
+                break;
+            }
+        }
+        out
+    }
+
+    const LOG: &str = "\
+__CLA_COMMIT__2024-06-02T10:00:00+08:00
+src/newer.rs
+src/both.rs
+
+__CLA_COMMIT__2024-06-01T10:00:00+08:00
+src/both.rs
+src/older.rs
+";
+
+    #[test]
+    fn newest_commit_wins_per_path() {
+        let dates = parse_log(LOG, &["src/newer.rs", "src/both.rs", "src/older.rs"]);
+        let newer = chrono::DateTime::parse_from_rfc3339("2024-06-02T10:00:00+08:00")
+            .unwrap()
+            .timestamp_millis();
+        let older = chrono::DateTime::parse_from_rfc3339("2024-06-01T10:00:00+08:00")
+            .unwrap()
+            .timestamp_millis();
+        assert_eq!(dates.get("src/newer.rs"), Some(&newer));
+        // First (newest) occurrence wins, not the later one.
+        assert_eq!(dates.get("src/both.rs"), Some(&newer));
+        assert_eq!(dates.get("src/older.rs"), Some(&older));
+    }
+
+    #[test]
+    fn unrequested_and_uncommitted_paths_are_absent() {
+        let dates = parse_log(LOG, &["src/newer.rs", "src/never_committed.rs"]);
+        assert_eq!(dates.len(), 1);
+        assert!(dates.contains_key("src/newer.rs"));
+        assert!(!dates.contains_key("src/both.rs"));
+        assert!(!dates.contains_key("src/never_committed.rs"));
+    }
+
+    #[test]
+    fn stops_early_once_all_paths_resolved() {
+        let wanted: HashSet<&str> = ["src/newer.rs"].into_iter().collect();
+        let mut out = HashMap::new();
+        let mut current_ts: Option<i64> = None;
+        let mut stopped_at = None;
+        for (i, line) in LOG.lines().enumerate() {
+            if !consume_git_log_line(line, &wanted, &mut current_ts, &mut out) {
+                stopped_at = Some(i);
+                break;
+            }
+        }
+        // Resolved on the second line; the older commit is never read.
+        assert_eq!(stopped_at, Some(1));
+        assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn malformed_date_lines_are_skipped() {
+        let raw = "__CLA_COMMIT__not-a-date\nsrc/a.rs\n";
+        let dates = parse_log(raw, &["src/a.rs"]);
+        assert!(dates.is_empty());
+    }
 }

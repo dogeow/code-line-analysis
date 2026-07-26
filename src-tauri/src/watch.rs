@@ -11,6 +11,7 @@ use crate::commands::scan::enqueue_folder_scan;
 use crate::types::ScanOptions;
 
 struct WatchSession {
+    root: PathBuf,
     _debouncer: Debouncer<RecommendedWatcher>,
 }
 
@@ -75,6 +76,7 @@ impl FolderWatchManager {
         self.sessions.lock().insert(
             folder_id,
             WatchSession {
+                root,
                 _debouncer: debouncer,
             },
         );
@@ -86,6 +88,10 @@ impl FolderWatchManager {
 
     pub fn refresh_all(self: &Arc<Self>, app: &AppHandle, folders: &[(i64, String)]) {
         let active: std::collections::HashSet<i64> = folders.iter().map(|(id, _)| *id).collect();
+        // Idempotent: only (re)start sessions that are missing or whose root changed
+        // (folders_relocate). Restarting live sessions would drop the Debouncer and any
+        // events pending inside its debounce window.
+        let mut to_start: Vec<(i64, PathBuf)> = Vec::new();
         {
             let mut sessions = self.sessions.lock();
             let stale: Vec<i64> = sessions
@@ -96,9 +102,16 @@ impl FolderWatchManager {
             for id in stale {
                 sessions.remove(&id);
             }
+            for (id, root) in folders {
+                let root = PathBuf::from(root);
+                match sessions.get(id) {
+                    Some(session) if session.root == root => {}
+                    _ => to_start.push((*id, root)),
+                }
+            }
         }
-        for (id, root) in folders {
-            self.start(app.clone(), *id, PathBuf::from(root));
+        for (id, root) in to_start {
+            self.start(app.clone(), id, root);
         }
     }
 }

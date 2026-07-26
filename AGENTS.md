@@ -11,6 +11,7 @@ The full Electron / static-web edition lives on the `electron` branch.
 - `npm run dev`: start Tauri (Vite renderer + Rust backend)
 - `npm run build`: package the desktop app
 - `npm run dev:ui` / `npm run build:ui`: frontend only
+- `npm run typecheck`: TypeScript check for the renderer
 - `cargo check --manifest-path src-tauri/Cargo.toml`
 
 ## Repository Layout
@@ -24,5 +25,5 @@ The full Electron / static-web edition lives on the `electron` branch.
 - Desktop icons live under `src-tauri/icons/` (source also in `build/icon.png`)
 - When changing the API surface, keep `src/shared/api.ts` and `src/renderer/runtime/tauri-api.ts` aligned with Rust command names
 - Progress events use the exact name `scan:progress`
-- CI: `.github/workflows/ci.yml` runs `build:ui` + `cargo check`
+- CI: `.github/workflows/ci.yml` runs `typecheck` + `build:ui` + `cargo test`
 - Web deploy workflow targets the `electron` branch only

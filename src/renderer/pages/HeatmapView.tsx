@@ -3,6 +3,7 @@ import type { EChartsOption } from 'echarts';
 import type { FolderRow, HeatmapBucket } from '../../shared/api';
 import EChartsPanel from '../components/EChartsPanel';
 import { useI18n } from '../i18n';
+import { axisValueLabelOf, firstFormatterParam } from '../utils/echartsParams';
 import { escapeHtml } from '../utils/escapeHtml';
 
 interface Props {
@@ -115,12 +116,12 @@ export default function HeatmapView({ folder, scanRevision }: Props) {
         borderColor: CHART_BORDER,
         textStyle: { color: CHART_TEXT },
         formatter: params => {
-          const point = Array.isArray(params) ? params[0] : params;
+          const point = firstFormatterParam(params);
           const lines = point && typeof point.data === 'object' && point.data && 'lines' in point.data
             ? Number(point.data.lines)
             : 0;
           return [
-            escapeHtml(String(point?.axisValueLabel ?? '')),
+            escapeHtml(axisValueLabelOf(point)),
             `${t('heatmap.filesChanged')}: ${Number(point?.value ?? 0).toLocaleString(locale)}`,
             `${t('heatmap.totalLinesSinceDate')}: ${lines.toLocaleString(locale)}`,
           ].join('<br/>');
