@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import OverviewView from './views/OverviewView';
 import CodeView from './views/CodeView';
@@ -6,6 +7,8 @@ import EditorTab from './views/EditorTab';
 import WorkspaceView from './views/WorkspaceView';
 import AppShell from './shell/AppShell';
 import { useActiveFolder } from './store/app-store';
+import { useI18n } from './i18n';
+import { checkForUpdate } from './lib/updater';
 
 /**
  * Routing only. Every piece of state this file used to own — folders, the
@@ -15,6 +18,11 @@ import { useActiveFolder } from './store/app-store';
  */
 export default function App() {
   const folder = useActiveFolder();
+  const { t } = useI18n();
+
+  useEffect(() => {
+    void checkForUpdate(t);
+  }, [t]);
 
   return (
     <AppShell>

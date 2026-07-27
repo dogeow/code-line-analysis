@@ -27,6 +27,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "category": "DeveloperTool",
     "shortDescription": "Local code line analysis for repositories",
@@ -39,5 +40,12 @@
       "icons/icon.ico"
     ]
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc2RDU4RERBODQ5MkZEQ0UKUldUTy9aS0UybzNWZHRqcGNaREdjOGFYWHcyL3kvdU1uRzVjNWFQVjJJdUkrVFpXM2JXUjVycXIK",
+      "endpoints": [
+        "https://github.com/react-laravel/code-line-analysis/releases/latest/download/latest.json"
+      ]
+    }
+  }
 }
