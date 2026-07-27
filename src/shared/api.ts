@@ -196,7 +196,8 @@ export interface TreeNodeContextMenuRequest {
 }
 
 export interface ApiRuntimeInfo {
-  mode: 'tauri';
+  /** `'mock'` is the browser dev preview (`npm run dev:ui`); never shipped. */
+  mode: 'tauri' | 'mock';
   supportsNativeFolderSelection: boolean;
   supportsFileWrite: boolean;
   supportsExternalLinks: boolean;

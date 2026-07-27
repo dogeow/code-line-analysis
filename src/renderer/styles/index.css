@@ -1,0 +1,51 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+/* --------------------------------------------------------------------------
+   Monaco decoration classes — the only hand-written CSS left in the renderer.
+
+   These names are handed to `editor.deltaDecorations` (views/EditorTab.tsx), so
+   Monaco writes them onto DOM it owns; they can never be Tailwind utilities on
+   our own markup. Everything else that used to live in `styles.css` is now
+   either a `ui/` primitive or a Tailwind class on the shell (chunk 12).
+
+   The three tones map onto the design system's status roles (DESIGN-SYSTEM
+   §1.4): `default` = running (a plain jump target), `function` = success (a
+   healthy, resolved symbol), `duplicate` = danger. Every rule reads a `--ds-*`
+   token, so both themes invert for free.
+   -------------------------------------------------------------------------- */
+.editor-highlight-range.default {
+  background: var(--ds-running-quiet);
+}
+.editor-highlight-range.function {
+  background: var(--ds-success-quiet);
+}
+.editor-highlight-range.duplicate {
+  background: var(--ds-danger-quiet);
+}
+
+.editor-highlight-anchor.default {
+  box-shadow: inset 3px 0 0 var(--ds-running);
+}
+.editor-highlight-anchor.function {
+  box-shadow: inset 3px 0 0 var(--ds-success);
+}
+.editor-highlight-anchor.duplicate {
+  box-shadow: inset 3px 0 0 var(--ds-danger);
+}
+
+/* `!important` beats Monaco's own inline gutter sizing. */
+.editor-highlight-gutter {
+  width: 6px !important;
+  margin-left: 4px;
+  border-radius: 999px;
+}
+.editor-highlight-gutter.default {
+  background: var(--ds-running);
+}
+.editor-highlight-gutter.function {
+  background: var(--ds-success);
+}
+.editor-highlight-gutter.duplicate {
+  background: var(--ds-danger);
+}

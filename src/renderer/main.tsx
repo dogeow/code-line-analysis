@@ -6,7 +6,7 @@ import App from './App';
 import { I18nProvider } from './i18n';
 import { ensureRuntimeApi } from './runtime';
 import { applyInitialTheme, ThemeProvider } from './theme';
-import './styles.css';
+import './styles/index.css';
 
 ensureRuntimeApi();
 applyInitialTheme();
