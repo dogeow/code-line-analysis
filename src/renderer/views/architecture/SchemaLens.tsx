@@ -13,6 +13,7 @@ import {
   type ChartTokens,
 } from '../../components/ui';
 import ScanNowButton from '../../components/ScanNowButton';
+import { useAsyncResource } from '../../hooks/useAsyncResource';
 import { useI18n } from '../../i18n';
 import { firstFormatterParam } from '../../utils/echartsParams';
 import { escapeHtml } from '../../utils/escapeHtml';
@@ -92,37 +93,24 @@ export function useSchemaLens({ folder, active }: ArchLensArgs): ArchLens {
   const navigate = useNavigate();
   const detectedLaravel = useActiveIsLaravel();
 
-  const [schema, setSchema] = useState<LaravelSchemaGraph | null>(null);
-  const [loading, setLoading] = useState(false);
   const [selectedRelationKinds, setSelectedRelationKinds] = useState<Set<OrmRelationKind>>(() => new Set(DEFAULT_RELATION_KINDS));
   const [selectedRelationKey, setSelectedRelationKey] = useState<string | null>(null);
 
   const folderId = folder.id;
+  const loadSchema = useCallback(() => window.api.stats.laravelSchema(folderId), [folderId]);
+  const schemaErrorData = useCallback(() => emptySchema(), []);
+  const { data: schema, loading } = useAsyncResource<LaravelSchemaGraph | null>({
+    resourceKey: folderId,
+    refreshToken: revision,
+    enabled: active,
+    initialData: null,
+    load: loadSchema,
+    errorData: schemaErrorData,
+  });
 
-  // Only the visible lens fetches, so drop the previous folder's schema rather
-  // than rendering it under the new folder's name.
   useEffect(() => {
-    setSchema(null);
     setSelectedRelationKey(null);
   }, [folderId]);
-
-  useEffect(() => {
-    if (!active) return;
-    let ignore = false;
-
-    setLoading(true);
-    void window.api.stats.laravelSchema(folderId).then(nextSchema => {
-      if (ignore) return;
-      setSchema(nextSchema);
-      setLoading(false);
-    }).catch(() => {
-      if (ignore) return;
-      setSchema(emptySchema());
-      setLoading(false);
-    });
-
-    return () => { ignore = true; };
-  }, [active, folderId, revision]);
 
   const ormRelations = useMemo<OrmLaravelRelation[]>(
     () => (schema?.relations ?? []).filter((relation): relation is OrmLaravelRelation => relation.kind !== 'foreign-key'),

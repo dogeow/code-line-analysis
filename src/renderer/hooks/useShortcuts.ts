@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { isMac } from '../components/ui';
+import { isMac } from '../components/ui/_internal/hooks';
 import type { TranslationKey } from '../i18n';
 import { useAppStore } from '../store/app-store';
 import { useScanStore } from '../store/scan-store';

@@ -1,5 +1,5 @@
 import { RefreshCw } from 'lucide-react';
-import { Button } from './ui';
+import { Button } from './ui/button';
 import { useI18n } from '../i18n';
 import { useAppStore } from '../store/app-store';
 import { useScanStore } from '../store/scan-store';

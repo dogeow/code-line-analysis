@@ -1,6 +1,6 @@
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type Update } from '@tauri-apps/plugin-updater';
-import { toast } from '../components/ui';
+import { toast } from '../components/ui/toast';
 import type { TranslationKey } from '../i18n';
 
 type Translator = (

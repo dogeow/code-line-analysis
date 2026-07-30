@@ -13,6 +13,7 @@ import {
 } from '../../components/ui';
 import { ChevronDown } from 'lucide-react';
 import ScanNowButton from '../../components/ScanNowButton';
+import { useAsyncResource } from '../../hooks/useAsyncResource';
 import { useI18n } from '../../i18n';
 import { useRevision } from '../../store/app-store';
 import ApiRoutesList from './ApiRoutesList';
@@ -59,42 +60,33 @@ export function useRoutesLens({ folder, query, setQuery, active }: ArchLensArgs)
   const { locale, t } = useI18n();
   const navigate = useNavigate();
 
-  const [overview, setOverview] = useState<ApiRouteOverview | null>(null);
-  const [loading, setLoading] = useState(false);
   const [frameworkFilter, setFrameworkFilter] = useState<'all' | ApiRouteEntry['framework']>('all');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('list');
   const [chartVariant, setChartVariant] = useState<RouteChartVariant>('force');
   const [visibleDepth, setVisibleDepth] = useState<number | null>(null);
 
   const folderId = folder.id;
+  const loadOverview = useCallback(() => window.api.stats.apiRoutes(folderId), [folderId]);
+  const overviewErrorData = useCallback(() => emptyOverview(), []);
+  const { data: overview, loading } = useAsyncResource<ApiRouteOverview | null>({
+    resourceKey: folderId,
+    refreshToken: revision,
+    enabled: active,
+    initialData: null,
+    load: loadOverview,
+    errorData: overviewErrorData,
+  });
 
-  // Never show one project's routes under another project's name: only the
-  // visible lens fetches, so a stale overview would otherwise survive a folder
-  // switch until this lens is opened again.
   useEffect(() => {
-    setOverview(null);
     setVisibleDepth(null);
   }, [folderId]);
 
   useEffect(() => {
-    if (!active) return;
-    let ignore = false;
-
-    setLoading(true);
-    void window.api.stats.apiRoutes(folderId).then(nextOverview => {
-      if (ignore) return;
-      setOverview(nextOverview);
-      setVisibleDepth(nextOverview.routes.length > 120 ? Math.min(2, Math.max(maxRoutePathDepth(nextOverview.routes), 1)) : null);
-      setLoading(false);
-    }).catch(() => {
-      if (ignore) return;
-      setOverview(emptyOverview());
-      setVisibleDepth(null);
-      setLoading(false);
-    });
-
-    return () => { ignore = true; };
-  }, [active, folderId, revision]);
+    if (!overview) return;
+    setVisibleDepth(overview.routes.length > 120
+      ? Math.min(2, Math.max(maxRoutePathDepth(overview.routes), 1))
+      : null);
+  }, [overview]);
 
   const filteredRoutes = useMemo(() => {
     const normalizedSearch = query.trim().toLowerCase();

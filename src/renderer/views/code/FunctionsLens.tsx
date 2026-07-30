@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Braces, Ruler } from 'lucide-react';
 import type { TopFunction } from '../../../shared/api';
@@ -13,6 +13,7 @@ import {
   type SortState,
 } from '../../components/ui';
 import ScanNowButton from '../../components/ScanNowButton';
+import { useAsyncResource } from '../../hooks/useAsyncResource';
 import { useI18n } from '../../i18n';
 import { useRevision } from '../../store/app-store';
 import { useScanStore } from '../../store/scan-store';
@@ -33,25 +34,22 @@ export function useFunctionsLens({ folder, query, clearQuery, active }: LensArgs
   const navigate = useNavigate();
   const scanning = useScanStore(state => state.status === 'running' || state.status === 'queued');
 
-  const [funcs, setFuncs] = useState<TopFunction[]>([]);
   const [limit, setLimit] = useState(LIMITS[0]);
   const [minLength, setMinLength] = useState('');
   const [sort, setSort] = useState<SortState | null>(null);
 
   const folderId = folder.id;
-
-  useEffect(() => setFuncs([]), [folderId]);
-
-  useEffect(() => {
-    if (!active) return;
-    let ignore = false;
-    void window.api.stats.topFunctions(folderId, limit).then(next => {
-      if (!ignore) setFuncs(next);
-    });
-    return () => {
-      ignore = true;
-    };
-  }, [active, folderId, limit, revision]);
+  const loadFunctions = useCallback(
+    () => window.api.stats.topFunctions(folderId, limit),
+    [folderId, limit],
+  );
+  const { data: funcs } = useAsyncResource<TopFunction[]>({
+    resourceKey: folderId,
+    refreshToken: revision,
+    enabled: active,
+    initialData: [],
+    load: loadFunctions,
+  });
 
   const filtered = useMemo(() => {
     const needle = query.toLowerCase();

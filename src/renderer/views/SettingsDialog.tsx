@@ -1,19 +1,15 @@
 import { useEffect, useMemo } from 'react';
 import { Globe2, Info, ListTree, Palette } from 'lucide-react';
-import {
-  Button,
-  Dialog,
-  Field,
-  Kbd,
-  RadioGroup,
-  Select,
-  Switch,
-  Tabs,
-  ToggleGroup,
-  isMac,
-  type RuleScope,
-  type ToggleOption,
-} from '../components/ui';
+import { isMac } from '../components/ui/_internal/hooks';
+import { Button } from '../components/ui/button';
+import { RadioGroup, Switch } from '../components/ui/checkbox';
+import { Dialog } from '../components/ui/dialog';
+import { Field } from '../components/ui/field';
+import { Kbd } from '../components/ui/kbd';
+import type { RuleScope } from '../components/ui/rule-editor';
+import { Select } from '../components/ui/select';
+import { Tabs } from '../components/ui/tabs';
+import { ToggleGroup, type ToggleOption } from '../components/ui/toggle-group';
 import { useRuleEditorPanel } from '../components/RuleEditorPanel';
 import { useI18n, type Language } from '../i18n';
 import { useTheme, type ThemeMode } from '../theme';

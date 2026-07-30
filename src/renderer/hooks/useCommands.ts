@@ -27,7 +27,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { TopFile } from '../../shared/api';
-import { isActionableMenuItem, type Command, type MenuItem, type RuleScope } from '../components/ui';
+import { isActionableMenuItem, type MenuItem } from '../components/ui/_internal/types';
+import type { Command } from '../components/ui/command-palette';
+import type { RuleScope } from '../components/ui/rule-editor';
 import { collectDirectoryPaths, pathsForLevel } from '../lib/tree-nodes';
 import { useI18n, type TranslationKey } from '../i18n';
 import { useTheme } from '../theme';

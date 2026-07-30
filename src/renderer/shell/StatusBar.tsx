@@ -1,5 +1,7 @@
 import { Square } from 'lucide-react';
-import { IconButton, StatusDot, type StatusTone } from '../components/ui';
+import { StatusDot } from '../components/ui/badge';
+import type { StatusTone } from '../components/ui/_internal/types';
+import { IconButton } from '../components/ui/icon-button';
 import { useI18n } from '../i18n';
 import { useAppStore } from '../store/app-store';
 import { useScanStore } from '../store/scan-store';

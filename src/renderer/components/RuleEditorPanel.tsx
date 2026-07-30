@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FolderRow, FolderRules } from '../../shared/api';
 import { DEFAULT_BLACKLIST } from '../../shared/api';
-import { Field, Input, Panel, RuleEditor, type RuleScope } from './ui';
+import { Field } from './ui/field';
+import { Input } from './ui/input';
+import { Panel } from './ui/panel';
+import { RuleEditor, type RuleScope } from './ui/rule-editor';
 import { isFolderRulesResponse, readFolderRules, rulesFromText, rulesToText } from '../lib/folder-rules';
 import { useI18n } from '../i18n';
 

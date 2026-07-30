@@ -1,18 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CircleAlert, FileCode2, FolderOpen } from 'lucide-react';
-import {
-  Button,
-  ConfirmDialog,
-  ProgressBar,
-  ScrollArea,
-  SplitPane,
-  TabStrip,
-  Toaster,
-  toast,
-  type DocumentTab,
-  type MenuItem,
-} from '../components/ui';
+import type { MenuItem } from '../components/ui/_internal/types';
+import { Button } from '../components/ui/button';
+import { ConfirmDialog } from '../components/ui/dialog';
+import { ProgressBar } from '../components/ui/progress';
+import { ScrollArea } from '../components/ui/scroll-area';
+import { SplitPane } from '../components/ui/split-pane';
+import { TabStrip, type DocumentTab } from '../components/ui/tab-strip';
+import { Toaster, toast } from '../components/ui/toast';
 import { useI18n } from '../i18n';
 import { useActiveFolder, useAppStore } from '../store/app-store';
 import { useScanStore } from '../store/scan-store';

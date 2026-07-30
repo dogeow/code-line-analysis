@@ -1,5 +1,5 @@
 import type { FolderRules } from '../../shared/api';
-import { normalizeRules } from '../components/ui';
+import { normalizeRules } from '../components/ui/rule-editor';
 
 /**
  * Guard an IPC response (or a cached value) into a well-formed `FolderRules`.

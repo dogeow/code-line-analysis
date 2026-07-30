@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { FolderRow } from '../../shared/api';
-import { toast } from '../components/ui';
+import { toast } from '../components/ui/toast';
 import { useI18n } from '../i18n';
 import { useAppStore } from '../store/app-store';
 import { useScanStore } from '../store/scan-store';

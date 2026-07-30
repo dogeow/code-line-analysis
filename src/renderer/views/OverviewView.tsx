@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { EChartsOption } from 'echarts';
 import { RefreshCw } from 'lucide-react';
 import type { FolderRow, FolderStats } from '../../shared/api';
@@ -16,6 +16,7 @@ import {
 } from '../components/ui';
 import NoFolderState from '../components/NoFolderState';
 import ScanNowButton from '../components/ScanNowButton';
+import { useAsyncResource } from '../hooks/useAsyncResource';
 import { useI18n } from '../i18n';
 import { axisValueLabelOf, firstFormatterParam } from '../utils/echartsParams';
 import { escapeHtml } from '../utils/escapeHtml';
@@ -238,37 +239,23 @@ interface Props {
 export default function OverviewView({ folder }: Props) {
   const scanRevision = useRevision();
   const { locale, t } = useI18n();
-  const [stats, setStats] = useState<FolderStats | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<unknown>(null);
 
   const folderId = folder?.id ?? null;
-
-  const refresh = useCallback(async () => {
-    if (folderId == null) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setStats(await window.api.stats.summary(folderId));
-    } catch (cause) {
-      setStats(null);
-      setError(cause ?? new Error('stats.summary failed'));
-    } finally {
-      setLoading(false);
-    }
-  }, [folderId]);
-
-  // Drop the previous folder's numbers before the new ones land, so a folder
-  // switch shows skeletons rather than another project's totals. A rescan
-  // (`scanRevision`) deliberately keeps the current numbers on screen.
-  useEffect(() => {
-    setStats(null);
-    setError(null);
-  }, [folderId]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh, scanRevision]);
+  const loadStats = useCallback(
+    () => folderId == null ? Promise.reject(new Error('No active folder')) : window.api.stats.summary(folderId),
+    [folderId],
+  );
+  const {
+    data: stats,
+    loading,
+    error,
+    reload,
+  } = useAsyncResource<FolderStats | null>({
+    resourceKey: folderId,
+    refreshToken: scanRevision,
+    initialData: null,
+    load: loadStats,
+  });
 
   const languageColumns = useMemo<Column<LangRow>[]>(() => [
     { id: 'lang', header: t('common.language'), cell: row => row.lang },
@@ -338,7 +325,7 @@ export default function OverviewView({ folder }: Props) {
           description={t('overview.loadFailedHelp')}
           error={error}
           action={(
-            <Button variant="primary" icon={RefreshCw} onClick={() => void refresh()}>
+            <Button variant="primary" icon={RefreshCw} onClick={reload}>
               {t('common.retry')}
             </Button>
           )}

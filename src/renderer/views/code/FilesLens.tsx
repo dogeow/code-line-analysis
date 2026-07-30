@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TopFile } from '../../../shared/api';
 import {
@@ -12,6 +12,7 @@ import {
   type SortState,
 } from '../../components/ui';
 import ScanNowButton from '../../components/ScanNowButton';
+import { useAsyncResource } from '../../hooks/useAsyncResource';
 import { useI18n } from '../../i18n';
 import { useRevision } from '../../store/app-store';
 import { useScanStore } from '../../store/scan-store';
@@ -43,7 +44,6 @@ export function useFilesLens({ folder, query, clearQuery, active }: LensArgs): C
   const navigate = useNavigate();
   const scanning = useScanStore(state => state.status === 'running' || state.status === 'queued');
 
-  const [files, setFiles] = useState<TopFile[]>([]);
   const [languageFilter, setLanguageFilter] = useState('ALL');
   const [extensionFilter, setExtensionFilter] = useState('ALL');
   const [minLines, setMinLines] = useState('');
@@ -51,20 +51,14 @@ export function useFilesLens({ folder, query, clearQuery, active }: LensArgs): C
   const [sort, setSort] = useState<SortState | null>({ columnId: 'total', direction: 'desc' });
 
   const folderId = folder.id;
-
-  // Never show one project's files under another project's name.
-  useEffect(() => setFiles([]), [folderId]);
-
-  useEffect(() => {
-    if (!active) return;
-    let ignore = false;
-    void window.api.stats.topFiles(folderId, 5000).then(next => {
-      if (!ignore) setFiles(next);
-    });
-    return () => {
-      ignore = true;
-    };
-  }, [active, folderId, revision]);
+  const loadFiles = useCallback(() => window.api.stats.topFiles(folderId, 5000), [folderId]);
+  const { data: files } = useAsyncResource<TopFile[]>({
+    resourceKey: folderId,
+    refreshToken: revision,
+    enabled: active,
+    initialData: [],
+    load: loadFiles,
+  });
 
   const rows = useMemo<FileRowView[]>(
     () => files.map(file => ({ ...file, ext: extOf(file.relPath) })),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TagRow } from '../../../shared/api';
 import {
@@ -11,6 +11,7 @@ import {
   type ToggleOption,
 } from '../../components/ui';
 import ScanNowButton from '../../components/ScanNowButton';
+import { useAsyncResource } from '../../hooks/useAsyncResource';
 import { tagTone } from '../../lib/tag-tone';
 import { useI18n } from '../../i18n';
 import { useAppStore, useRevision } from '../../store/app-store';
@@ -65,26 +66,19 @@ export function useMarkersLens({ folder, query, clearQuery, active }: LensArgs):
   const scanning = useScanStore(state => state.status === 'running' || state.status === 'queued');
 
   const [kind, setKind] = useState<KindFilter>('');
-  const [tags, setTags] = useState<TagWithPath[]>([]);
 
   const folderId = folder.id;
-
-  useEffect(() => setTags([]), [folderId]);
-
-  // The cleanup guard replaces the hand-rolled request-key/version refs at
-  // `TagsView.tsx:33-45`: a response that arrives after its inputs changed is
-  // dropped either way.
-  useEffect(() => {
-    if (!active) return;
-    let ignore = false;
-    setTags([]);
-    void window.api.stats.tags(folderId, kind || undefined).then(next => {
-      if (!ignore) setTags(next);
-    });
-    return () => {
-      ignore = true;
-    };
-  }, [active, folderId, kind, revision]);
+  const loadTags = useCallback(
+    () => window.api.stats.tags(folderId, kind || undefined),
+    [folderId, kind],
+  );
+  const { data: tags } = useAsyncResource<TagWithPath[]>({
+    resourceKey: `${folderId}:${kind}`,
+    refreshToken: revision,
+    enabled: active,
+    initialData: [],
+    load: loadTags,
+  });
 
   const groups = useMemo(() => {
     const needle = query.toLowerCase();

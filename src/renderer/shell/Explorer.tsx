@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EllipsisVertical, File, Folder, FolderOpen, FolderTree } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import {
-  Button,
-  DropdownMenu,
-  EmptyState,
-  IconButton,
-  ScrollArea,
-  Spinner,
-  TreeRow,
-  type MenuItem,
-} from '../components/ui';
+import type { MenuItem } from '../components/ui/_internal/types';
+import { Button } from '../components/ui/button';
+import { EmptyState } from '../components/ui/empty-state';
+import { IconButton } from '../components/ui/icon-button';
+import { DropdownMenu } from '../components/ui/menu';
+import { ScrollArea } from '../components/ui/scroll-area';
+import { Spinner } from '../components/ui/spinner';
+import { TreeRow } from '../components/ui/tree-row';
 import ScanNowButton from '../components/ScanNowButton';
 import { cn } from '../lib/utils';
 import {

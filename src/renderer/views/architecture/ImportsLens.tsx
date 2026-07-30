@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { EChartsOption } from 'echarts';
 import { useNavigate } from 'react-router-dom';
 import type { FileRelationGraph, FileRelationNode } from '../../../shared/api';
@@ -14,6 +14,7 @@ import {
   type Column,
 } from '../../components/ui';
 import ScanNowButton from '../../components/ScanNowButton';
+import { useAsyncResource } from '../../hooks/useAsyncResource';
 import { useI18n } from '../../i18n';
 import { firstFormatterParam } from '../../utils/echartsParams';
 import { escapeHtml } from '../../utils/escapeHtml';
@@ -36,6 +37,13 @@ const MAX_TABLE_ROWS = 30;
  * folds into one neutral "Other" category.
  */
 const CATEGORICAL_SLOTS = 3;
+const EMPTY_GRAPH: FileRelationGraph = {
+  nodes: [],
+  edges: [],
+  scannedFiles: 0,
+  connectedFiles: 0,
+  unresolvedCount: 0,
+};
 
 function basename(relPath: string): string {
   const parts = relPath.split('/').filter(Boolean);
@@ -66,34 +74,20 @@ export function useImportsLens({ folder, active }: ArchLensArgs): ArchLens {
   const { locale, t } = useI18n();
   const navigate = useNavigate();
 
-  const [graph, setGraph] = useState<FileRelationGraph | null>(null);
-  const [loading, setLoading] = useState(false);
   const [visibleNodeLimit, setVisibleNodeLimit] = useState(DEFAULT_VISIBLE_NODES);
   const [showAllLabels, setShowAllLabels] = useState(false);
 
   const folderId = folder.id;
-
-  // Only the visible lens fetches, so drop the previous folder's graph rather
-  // than rendering it under the new folder's name.
-  useEffect(() => setGraph(null), [folderId]);
-
-  useEffect(() => {
-    if (!active) return;
-    let ignore = false;
-
-    setLoading(true);
-    void window.api.stats.fileRelations(folderId).then(nextGraph => {
-      if (ignore) return;
-      setGraph(nextGraph);
-      setLoading(false);
-    }).catch(() => {
-      if (ignore) return;
-      setGraph({ nodes: [], edges: [], scannedFiles: 0, connectedFiles: 0, unresolvedCount: 0 });
-      setLoading(false);
-    });
-
-    return () => { ignore = true; };
-  }, [active, folderId, revision]);
+  const loadGraph = useCallback(() => window.api.stats.fileRelations(folderId), [folderId]);
+  const graphErrorData = useCallback(() => EMPTY_GRAPH, []);
+  const { data: graph, loading } = useAsyncResource<FileRelationGraph | null>({
+    resourceKey: folderId,
+    refreshToken: revision,
+    enabled: active,
+    initialData: null,
+    load: loadGraph,
+    errorData: graphErrorData,
+  });
 
   const visibleGraph = useMemo(
     () => (graph ? getVisibleGraph(graph, visibleNodeLimit) : { nodes: [], edges: [] }),

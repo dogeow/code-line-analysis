@@ -1,5 +1,8 @@
 import { Command, Moon, PanelLeft, RefreshCw, Settings, Sun } from 'lucide-react';
-import { Button, IconButton, SplitButton, Tooltip } from '../components/ui';
+import { Button } from '../components/ui/button';
+import { IconButton } from '../components/ui/icon-button';
+import { SplitButton } from '../components/ui/split-button';
+import { Tooltip } from '../components/ui/tooltip';
 import { useI18n } from '../i18n';
 import { useTheme } from '../theme';
 import { useActiveFolder, useAppStore } from '../store/app-store';

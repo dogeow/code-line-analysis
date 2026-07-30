@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Tooltip, useRovingTabIndex } from '../components/ui';
+import { useRovingTabIndex } from '../components/ui/_internal/hooks';
+import { Tooltip } from '../components/ui/tooltip';
 import { cn } from '../lib/utils';
 import { useI18n } from '../i18n';
 import { NAV_GROUPS, type NavItem } from './nav-items';

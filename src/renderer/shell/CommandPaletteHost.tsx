@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import { CommandPalette, Dialog, Kbd } from '../components/ui';
+import { CommandPalette } from '../components/ui/command-palette';
+import { Dialog } from '../components/ui/dialog';
+import { Kbd } from '../components/ui/kbd';
 import { useCommands } from '../hooks/useCommands';
 import { SHORTCUT_GROUPS } from '../hooks/useShortcuts';
 import { useI18n } from '../i18n';
